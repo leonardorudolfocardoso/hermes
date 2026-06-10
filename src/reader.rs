@@ -1,6 +1,6 @@
 use std::io::{Cursor, Read};
 
-use crate::{Packet, Record, RecordData, name::Name};
+use crate::Packet;
 
 pub struct PacketReader<'a> {
     inner: Cursor<Packet<'a>>,
@@ -33,7 +33,7 @@ impl<'a> PacketReader<'a> {
         Ok(u16::from_be_bytes(buf))
     }
 
-    fn read_u32(&mut self) -> std::io::Result<u32> {
+    pub fn read_u32(&mut self) -> std::io::Result<u32> {
         let mut buf = [0_u8; 4];
         self.inner.read_exact(&mut buf)?;
         Ok(u32::from_be_bytes(buf))
@@ -43,36 +43,13 @@ impl<'a> PacketReader<'a> {
         self.inner.read_exact(buf)
     }
 
-    pub fn read_answer(&mut self) -> std::io::Result<Record> {
-        let name = Name::read(self)?;
-        let record_type = self.read_u16()?;
-        let class = self.read_u16()?;
-        let ttl = self.read_u32()?;
-        let data_length = self.read_u16()?;
-
-        let data = match record_type {
-            1 => RecordData::A(self.read_array()?),
-            28 => RecordData::AAAA(self.read_array()?),
-            _ => RecordData::Unknown(self.read_vec(data_length as usize)?),
-        };
-
-        Ok(Record {
-            name,
-            record_type,
-            class,
-            ttl,
-            data_length,
-            data,
-        })
-    }
-
-    fn read_array<const N: usize>(&mut self) -> std::io::Result<[u8; N]> {
+    pub fn read_array<const N: usize>(&mut self) -> std::io::Result<[u8; N]> {
         let mut buf = [0; N];
         self.inner.read_exact(&mut buf)?;
         Ok(buf)
     }
 
-    fn read_vec(&mut self, n: usize) -> std::io::Result<Vec<u8>> {
+    pub fn read_vec(&mut self, n: usize) -> std::io::Result<Vec<u8>> {
         let mut buf = vec![0; n];
         self.inner.read_exact(&mut buf)?;
         Ok(buf)

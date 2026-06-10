@@ -1,3 +1,4 @@
+mod answer;
 mod header;
 mod name;
 mod question;
@@ -10,8 +11,8 @@ type OwnedPacket = Vec<u8>;
 use std::fmt::Display;
 use std::net::UdpSocket;
 
+use crate::answer::Answer;
 use crate::header::Header;
-use crate::name::Name;
 use crate::question::Question;
 use crate::reader::PacketReader;
 
@@ -36,27 +37,10 @@ impl Display for DnsError {
 pub type DnsResult<T> = Result<T, DnsError>;
 
 #[derive(Debug)]
-enum RecordData {
-    A([u8; 4]),
-    AAAA([u8; 16]),
-    Unknown(Vec<u8>),
-}
-
-#[derive(Debug)]
-struct Record {
-    name: Name,
-    record_type: u16,
-    class: u16,
-    ttl: u32,
-    data_length: u16,
-    data: RecordData,
-}
-
-#[derive(Debug)]
 struct Dns {
     header: Header,
     questions: Vec<Question>,
-    answers: Vec<Record>,
+    answers: Vec<Answer>,
     // authorities: Vec<Record>,
     // additional: Vec<Record>,
 }
@@ -74,7 +58,8 @@ impl<'a> TryFrom<Packet<'a>> for Dns {
         }
         let mut answers = vec![];
         for _ in 0..header.answer_count() {
-            answers.push(reader.read_answer()?);
+            let answer = Answer::read(&mut reader)?;
+            answers.push(answer);
         }
 
         Ok(Dns {
