@@ -10,10 +10,14 @@ use std::net::UdpSocket;
 use crate::{
     dns::{Dns, DnsError},
     reader::PacketReader,
+    writer::{PacketWriter, WriteResult},
 };
 
 trait Decode: Sized {
     fn decode(reader: &mut PacketReader) -> std::io::Result<Self>;
+}
+trait Encode: Sized {
+    fn encode(&self, writer: &mut PacketWriter) -> WriteResult;
 }
 
 pub fn resolve(packet: Packet) -> Result<OwnedPacket, DnsError> {

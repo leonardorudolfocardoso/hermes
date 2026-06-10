@@ -1,5 +1,5 @@
 use crate::{
-    Decode,
+    Decode, Encode,
     reader::PacketReader,
     writer::{PacketWriter, WriteResult},
 };
@@ -47,8 +47,8 @@ impl Decode for Name {
     }
 }
 
-impl Name {
-    pub fn write(&self, writer: &mut PacketWriter) -> WriteResult {
+impl Encode for Name {
+    fn encode(&self, writer: &mut PacketWriter) -> WriteResult {
         let name = &self.0;
         let labels = name.split(".");
         let mut n = 0;
@@ -71,7 +71,7 @@ impl From<&str> for Name {
 
 #[cfg(test)]
 mod test {
-    use crate::{Decode, reader::PacketReader, writer::PacketWriter};
+    use crate::{Decode, Encode, reader::PacketReader, writer::PacketWriter};
 
     use super::Name;
 
@@ -147,7 +147,7 @@ mod test {
     fn write_name() {
         let mut writer = PacketWriter::new();
         let name = Name::from("google.com");
-        let n = name.write(&mut writer).unwrap();
+        let n = name.encode(&mut writer).unwrap();
         assert_eq!(n, 12);
         assert_eq!(
             writer.get(),
@@ -160,7 +160,7 @@ mod test {
     fn write_name_round_trip() {
         let mut writer = PacketWriter::new();
         let name = Name::from("google.com");
-        let _ = name.write(&mut writer).unwrap();
+        let _ = name.encode(&mut writer).unwrap();
         let mut reader = PacketReader::new(writer.get());
         let read = Name::decode(&mut reader).unwrap();
         assert_eq!(read, Name::from("google.com"));
