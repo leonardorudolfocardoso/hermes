@@ -1,4 +1,5 @@
 mod header;
+mod name;
 mod reader;
 mod writer;
 
@@ -9,6 +10,7 @@ use std::fmt::Display;
 use std::net::UdpSocket;
 
 use crate::header::Header;
+use crate::name::Name;
 use crate::reader::PacketReader;
 
 #[derive(Debug)]
@@ -33,7 +35,7 @@ pub type DnsResult<T> = Result<T, DnsError>;
 
 #[derive(Debug)]
 struct Question {
-    name: String,
+    name: Name,
     record_type: u16,
     class: u16,
 }
@@ -47,7 +49,7 @@ enum RecordData {
 
 #[derive(Debug)]
 struct Record {
-    name: String,
+    name: Name,
     record_type: u16,
     class: u16,
     ttl: u32,
@@ -105,6 +107,8 @@ pub fn resolve(packet: Packet) -> DnsResult<OwnedPacket> {
 
 #[cfg(test)]
 mod test {
+    use crate::name::Name;
+
     use super::{Dns, Packet};
 
     #[test]
@@ -120,8 +124,8 @@ mod test {
         assert_eq!(packet.questions.len(), 1);
         assert_eq!(packet.answers.len(), 1);
 
-        assert_eq!(packet.questions[0].name, "google.com");
+        assert_eq!(packet.questions[0].name, Name::from("google.com"));
 
-        assert_eq!(packet.answers[0].name, "google.com");
+        assert_eq!(packet.answers[0].name, Name::from("google.com"));
     }
 }

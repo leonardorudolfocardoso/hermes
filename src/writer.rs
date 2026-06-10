@@ -47,7 +47,7 @@ impl PacketWriter {
 
 #[cfg(test)]
 mod test {
-    use crate::{reader::PacketReader, writer::PacketWriter};
+    use crate::{name::Name, reader::PacketReader, writer::PacketWriter};
 
     #[test]
     fn write_u8() {
@@ -88,7 +88,7 @@ mod test {
         let write = "google.com";
         let _ = writer.write_name(write).unwrap();
         let mut reader = PacketReader::new(&writer.inner);
-        let read = reader.read_name().unwrap();
-        assert_eq!(read, "google.com");
+        let read = Name::read(&mut reader).unwrap();
+        assert_eq!(read, Name::from("google.com"));
     }
 }
