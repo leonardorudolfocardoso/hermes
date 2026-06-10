@@ -1,6 +1,6 @@
 use std::io::{Cursor, Read};
 
-use crate::{Packet, Question, Record, RecordData, name::Name};
+use crate::{Packet, Record, RecordData, name::Name};
 
 pub struct PacketReader<'a> {
     inner: Cursor<Packet<'a>>,
@@ -41,18 +41,6 @@ impl<'a> PacketReader<'a> {
 
     pub fn read_exact(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
         self.inner.read_exact(buf)
-    }
-
-    pub fn read_question(&mut self) -> std::io::Result<Question> {
-        let name = Name::read(self)?;
-        let record_type = self.read_u16()?;
-        let class = self.read_u16()?;
-
-        Ok(Question {
-            name,
-            record_type,
-            class,
-        })
     }
 
     pub fn read_answer(&mut self) -> std::io::Result<Record> {

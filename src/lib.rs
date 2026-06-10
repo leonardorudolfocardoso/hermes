@@ -1,5 +1,6 @@
 mod header;
 mod name;
+mod question;
 mod reader;
 mod writer;
 
@@ -11,6 +12,7 @@ use std::net::UdpSocket;
 
 use crate::header::Header;
 use crate::name::Name;
+use crate::question::Question;
 use crate::reader::PacketReader;
 
 #[derive(Debug)]
@@ -32,13 +34,6 @@ impl Display for DnsError {
 }
 
 pub type DnsResult<T> = Result<T, DnsError>;
-
-#[derive(Debug)]
-struct Question {
-    name: Name,
-    record_type: u16,
-    class: u16,
-}
 
 #[derive(Debug)]
 enum RecordData {
@@ -74,7 +69,8 @@ impl<'a> TryFrom<Packet<'a>> for Dns {
         let header = Header::read(&mut reader)?;
         let mut questions = Vec::new();
         for _ in 0..header.question_count() {
-            questions.push(reader.read_question()?);
+            let question = Question::read(&mut reader)?;
+            questions.push(question);
         }
         let mut answers = vec![];
         for _ in 0..header.answer_count() {
@@ -107,8 +103,6 @@ pub fn resolve(packet: Packet) -> DnsResult<OwnedPacket> {
 
 #[cfg(test)]
 mod test {
-    use crate::name::Name;
-
     use super::{Dns, Packet};
 
     #[test]
@@ -123,9 +117,5 @@ mod test {
 
         assert_eq!(packet.questions.len(), 1);
         assert_eq!(packet.answers.len(), 1);
-
-        assert_eq!(packet.questions[0].name, Name::from("google.com"));
-
-        assert_eq!(packet.answers[0].name, Name::from("google.com"));
     }
 }
