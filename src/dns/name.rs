@@ -76,7 +76,7 @@ mod test {
     use super::Name;
 
     #[test]
-    fn reads_uncompressed_name() {
+    fn decodes_uncompressed_name() {
         let packet = [
             6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm', 0,
         ];
@@ -88,7 +88,7 @@ mod test {
         assert_eq!(name, Name::from("google.com"));
     }
     #[test]
-    fn reads_compressed_name() {
+    fn decodes_compressed_name() {
         let packet = [
             // fake 12 byte header
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // position 12
@@ -105,7 +105,7 @@ mod test {
         assert_eq!(name, Name::from("google.com"));
     }
     #[test]
-    fn compressed_name_restores_cursor_position() {
+    fn decodes_a_compressed_name_restores_cursor_position() {
         let packet = [
             // 0-11
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 12
@@ -127,7 +127,7 @@ mod test {
         assert_eq!(next, 0x1234);
     }
     #[test]
-    fn reads_partially_compressed_name() {
+    fn decodes_partially_compressed_name() {
         let packet = [
             // fake header
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // position 12: google.com
@@ -144,7 +144,7 @@ mod test {
         assert_eq!(name, Name::from("www.google.com"));
     }
     #[test]
-    fn write_name() {
+    fn encode() {
         let mut writer = PacketWriter::new();
         let name = Name::from("google.com");
         let n = name.encode(&mut writer).unwrap();
@@ -157,7 +157,7 @@ mod test {
         )
     }
     #[test]
-    fn write_name_round_trip() {
+    fn encode_round_trip() {
         let mut writer = PacketWriter::new();
         let name = Name::from("google.com");
         let _ = name.encode(&mut writer).unwrap();
