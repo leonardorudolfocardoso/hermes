@@ -1,4 +1,5 @@
 mod reader;
+mod writer;
 
 type Packet<'a> = &'a [u8];
 type OwnedPacket = Vec<u8>;
