@@ -1,3 +1,4 @@
+mod header;
 mod reader;
 mod writer;
 
@@ -7,6 +8,7 @@ type OwnedPacket = Vec<u8>;
 use std::fmt::Display;
 use std::net::UdpSocket;
 
+use crate::header::Header;
 use crate::reader::PacketReader;
 
 #[derive(Debug)]
@@ -28,29 +30,6 @@ impl Display for DnsError {
 }
 
 pub type DnsResult<T> = Result<T, DnsError>;
-
-#[derive(Debug)]
-struct Header {
-    id: u16,
-    flags: u16,
-    question_count: u16,
-    answer_count: u16,
-    authority_count: u16,
-    additional_count: u16,
-}
-
-impl Header {
-    fn from_bytes(bytes: [u8; 12]) -> Header {
-        Header {
-            id: u16::from_be_bytes([bytes[0], bytes[1]]),
-            flags: u16::from_be_bytes([bytes[2], bytes[3]]),
-            question_count: u16::from_be_bytes([bytes[4], bytes[5]]),
-            answer_count: u16::from_be_bytes([bytes[6], bytes[7]]),
-            authority_count: u16::from_be_bytes([bytes[8], bytes[9]]),
-            additional_count: u16::from_be_bytes([bytes[10], bytes[11]]),
-        }
-    }
-}
 
 #[derive(Debug)]
 struct Question {
@@ -90,13 +69,13 @@ impl<'a> TryFrom<Packet<'a>> for Dns {
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
         let mut reader = PacketReader::new(value);
-        let header = reader.read_header()?;
+        let header = Header::read(&mut reader)?;
         let mut questions = Vec::new();
-        for _ in 0..header.question_count {
+        for _ in 0..header.question_count() {
             questions.push(reader.read_question()?);
         }
         let mut answers = vec![];
-        for _ in 0..header.answer_count {
+        for _ in 0..header.answer_count() {
             answers.push(reader.read_answer()?);
         }
 

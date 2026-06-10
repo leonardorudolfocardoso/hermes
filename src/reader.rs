@@ -1,6 +1,6 @@
 use std::io::{Cursor, Read};
 
-use crate::{Header, Packet, Question, Record, RecordData};
+use crate::{Packet, Question, Record, RecordData};
 
 pub struct PacketReader<'a> {
     inner: Cursor<Packet<'a>>,
@@ -39,10 +39,8 @@ impl<'a> PacketReader<'a> {
         Ok(u32::from_be_bytes(buf))
     }
 
-    pub fn read_header(&mut self) -> std::io::Result<Header> {
-        let mut buf = [0_u8; 12];
-        self.inner.read_exact(&mut buf)?;
-        Ok(Header::from_bytes(buf))
+    pub fn read_exact(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
+        self.inner.read_exact(buf)
     }
 
     pub fn read_name(&mut self) -> std::io::Result<String> {
