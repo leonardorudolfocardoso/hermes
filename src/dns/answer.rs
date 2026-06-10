@@ -1,6 +1,8 @@
 use std::io::Result;
 
-use crate::{name::Name, reader::PacketReader};
+use crate::reader::PacketReader;
+
+use super::name::Name;
 
 #[derive(Debug)]
 pub enum Data {

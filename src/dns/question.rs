@@ -1,6 +1,7 @@
 use std::io::Result;
 
-use crate::{name::Name, reader::PacketReader};
+use super::name::Name;
+use crate::reader::PacketReader;
 
 #[derive(Debug)]
 pub struct Question {

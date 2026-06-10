@@ -1,4 +1,7 @@
-use crate::reader::PacketReader;
+use crate::{
+    reader::PacketReader,
+    writer::{PacketWriter, WriteResult},
+};
 use std::io::Result;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -41,6 +44,20 @@ impl Name {
         let name = labels.join(".").as_str().into();
         Ok(name)
     }
+
+    pub fn write(&self, writer: &mut PacketWriter) -> WriteResult {
+        let name = &self.0;
+        let labels = name.split(".");
+        let mut n = 0;
+        for label in labels {
+            let size = label.len() as u8;
+            n += writer.write_u8(size)?;
+            let text = label.as_bytes();
+            n += writer.write(text)?;
+        }
+        n += writer.write_u8(0)?;
+        Ok(n)
+    }
 }
 
 impl From<&str> for Name {
@@ -51,7 +68,9 @@ impl From<&str> for Name {
 
 #[cfg(test)]
 mod test {
-    use crate::{name::Name, reader::PacketReader};
+    use crate::{reader::PacketReader, writer::PacketWriter};
+
+    use super::Name;
 
     #[test]
     fn reads_uncompressed_name() {
@@ -120,5 +139,27 @@ mod test {
         let name = Name::read(&mut reader).unwrap();
 
         assert_eq!(name, Name::from("www.google.com"));
+    }
+    #[test]
+    fn write_name() {
+        let mut writer = PacketWriter::new();
+        let name = Name::from("google.com");
+        let n = name.write(&mut writer).unwrap();
+        assert_eq!(n, 12);
+        assert_eq!(
+            writer.get(),
+            &[
+                6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm', 0,
+            ]
+        )
+    }
+    #[test]
+    fn write_name_round_trip() {
+        let mut writer = PacketWriter::new();
+        let name = Name::from("google.com");
+        let _ = name.write(&mut writer).unwrap();
+        let mut reader = PacketReader::new(writer.get());
+        let read = Name::read(&mut reader).unwrap();
+        assert_eq!(read, Name::from("google.com"));
     }
 }
