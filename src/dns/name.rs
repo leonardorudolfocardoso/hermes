@@ -1,4 +1,5 @@
 use crate::{
+    Decode,
     reader::PacketReader,
     writer::{PacketWriter, WriteResult},
 };
@@ -7,8 +8,8 @@ use std::io::Result;
 #[derive(Debug, PartialEq, Eq)]
 pub struct Name(String);
 
-impl Name {
-    pub fn read(reader: &mut PacketReader) -> Result<Name> {
+impl Decode for Name {
+    fn decode(reader: &mut PacketReader) -> Result<Name> {
         let mut labels = vec![];
 
         loop {
@@ -22,7 +23,7 @@ impl Name {
                 let offset = ((first_byte & 0x3F) << 8) | second_byte;
                 reader.set_position(offset as u64);
                 // read the name
-                let name = Self::read(reader)?;
+                let name = Self::decode(reader)?;
                 // jump back to after pointer position
                 reader.set_position(after_pointer_position);
 
@@ -44,7 +45,9 @@ impl Name {
         let name = labels.join(".").as_str().into();
         Ok(name)
     }
+}
 
+impl Name {
     pub fn write(&self, writer: &mut PacketWriter) -> WriteResult {
         let name = &self.0;
         let labels = name.split(".");
@@ -68,7 +71,7 @@ impl From<&str> for Name {
 
 #[cfg(test)]
 mod test {
-    use crate::{reader::PacketReader, writer::PacketWriter};
+    use crate::{Decode, reader::PacketReader, writer::PacketWriter};
 
     use super::Name;
 
@@ -80,7 +83,7 @@ mod test {
 
         let mut reader = PacketReader::new(&packet);
 
-        let name = Name::read(&mut reader).unwrap();
+        let name = Name::decode(&mut reader).unwrap();
 
         assert_eq!(name, Name::from("google.com"));
     }
@@ -97,7 +100,7 @@ mod test {
 
         reader.set_position(24);
 
-        let name = Name::read(&mut reader).unwrap();
+        let name = Name::decode(&mut reader).unwrap();
 
         assert_eq!(name, Name::from("google.com"));
     }
@@ -115,7 +118,7 @@ mod test {
 
         reader.set_position(24);
 
-        let name = Name::read(&mut reader).unwrap();
+        let name = Name::decode(&mut reader).unwrap();
 
         assert_eq!(name, Name::from("google.com"));
 
@@ -136,7 +139,7 @@ mod test {
 
         reader.set_position(24);
 
-        let name = Name::read(&mut reader).unwrap();
+        let name = Name::decode(&mut reader).unwrap();
 
         assert_eq!(name, Name::from("www.google.com"));
     }
@@ -159,7 +162,7 @@ mod test {
         let name = Name::from("google.com");
         let _ = name.write(&mut writer).unwrap();
         let mut reader = PacketReader::new(writer.get());
-        let read = Name::read(&mut reader).unwrap();
+        let read = Name::decode(&mut reader).unwrap();
         assert_eq!(read, Name::from("google.com"));
     }
 }

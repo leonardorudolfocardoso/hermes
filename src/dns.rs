@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::{
-    Packet,
+    Decode, Packet,
     dns::{answer::Answer, header::Header, question::Question},
     reader::PacketReader,
 };
@@ -43,15 +43,15 @@ impl<'a> TryFrom<Packet<'a>> for Dns {
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
         let mut reader = PacketReader::new(value);
-        let header = Header::read(&mut reader)?;
+        let header = Header::decode(&mut reader)?;
         let mut questions = Vec::new();
         for _ in 0..header.question_count() {
-            let question = Question::read(&mut reader)?;
+            let question = Question::decode(&mut reader)?;
             questions.push(question);
         }
         let mut answers = vec![];
         for _ in 0..header.answer_count() {
-            let answer = Answer::read(&mut reader)?;
+            let answer = Answer::decode(&mut reader)?;
             answers.push(answer);
         }
 

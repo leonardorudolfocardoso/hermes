@@ -1,7 +1,7 @@
 use std::io::Result;
 
 use super::name::Name;
-use crate::reader::PacketReader;
+use crate::{Decode, reader::PacketReader};
 
 #[derive(Debug)]
 pub struct Question {
@@ -10,9 +10,9 @@ pub struct Question {
     class: u16,
 }
 
-impl Question {
-    pub fn read(reader: &mut PacketReader) -> Result<Question> {
-        let name = Name::read(reader)?;
+impl Decode for Question {
+    fn decode(reader: &mut PacketReader) -> Result<Question> {
+        let name = Name::decode(reader)?;
         let record_type = reader.read_u16()?;
         let class = reader.read_u16()?;
 

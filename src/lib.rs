@@ -7,7 +7,14 @@ type OwnedPacket = Vec<u8>;
 
 use std::net::UdpSocket;
 
-use crate::dns::{Dns, DnsError};
+use crate::{
+    dns::{Dns, DnsError},
+    reader::PacketReader,
+};
+
+trait Decode: Sized {
+    fn decode(reader: &mut PacketReader) -> std::io::Result<Self>;
+}
 
 pub fn resolve(packet: Packet) -> Result<OwnedPacket, DnsError> {
     let socket = UdpSocket::bind("0.0.0.0:0")?;
