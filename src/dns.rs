@@ -2,12 +2,13 @@ use std::fmt::Display;
 
 use crate::{
     Decode, Encode, OwnedPacket, Packet,
-    dns::{answer::Answer, header::Header, question::Question},
+    dns::{answer::Answer, flags::Flags, header::Header, question::Question},
     reader::PacketReader,
     writer::PacketWriter,
 };
 
 pub mod answer;
+pub mod flags;
 pub mod header;
 pub mod name;
 pub mod question;
@@ -40,7 +41,7 @@ impl Display for DnsError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Dns {
     id: u16,
-    flags: u16,
+    flags: Flags,
     questions: Vec<Question>,
     answers: Vec<Answer>,
     authorities: Vec<Answer>,
@@ -106,6 +107,7 @@ mod test {
         OwnedPacket,
         dns::{
             answer::{Answer, Data},
+            flags::Flags,
             name::Name,
             question::Question,
         },
@@ -117,7 +119,7 @@ mod test {
     fn dns_encode_empty_packet() {
         let dns = Dns {
             id: 0x1234,
-            flags: 0x8180,
+            flags: Flags::from(0x8180),
             questions: vec![],
             answers: vec![],
             authorities: vec![],
@@ -142,7 +144,7 @@ mod test {
     fn dns_round_trip() {
         let original = Dns {
             id: 0x1234,
-            flags: 0x8180,
+            flags: Flags::from(0x8180),
             questions: vec![Question {
                 name: Name::from("google.com"),
                 record_type: 1,
@@ -170,7 +172,7 @@ mod test {
     fn dns_encode_writes_sections_in_order() {
         let dns = Dns {
             id: 1,
-            flags: 0x8180,
+            flags: Flags::from(0x8180),
             questions: vec![Question {
                 name: Name::from("google.com"),
                 record_type: 1,
