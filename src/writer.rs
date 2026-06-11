@@ -14,6 +14,10 @@ impl PacketWriter {
         &self.inner
     }
 
+    pub fn into_inner(self) -> OwnedPacket {
+        self.inner
+    }
+
     pub fn new() -> Self {
         PacketWriter {
             inner: OwnedPacket::new(),

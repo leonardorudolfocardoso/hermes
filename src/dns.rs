@@ -1,9 +1,10 @@
 use std::fmt::Display;
 
 use crate::{
-    Decode, Packet,
+    Decode, Encode, OwnedPacket, Packet,
     dns::{answer::Answer, header::Header, question::Question},
     reader::PacketReader,
+    writer::PacketWriter,
 };
 
 pub mod answer;
@@ -14,28 +15,36 @@ pub mod question;
 #[derive(Debug)]
 pub enum DnsError {
     IO(std::io::Error),
+    TryFromIntError(std::num::TryFromIntError),
 }
 impl From<std::io::Error> for DnsError {
     fn from(value: std::io::Error) -> Self {
         DnsError::IO(value)
     }
 }
+impl From<std::num::TryFromIntError> for DnsError {
+    fn from(value: std::num::TryFromIntError) -> Self {
+        DnsError::TryFromIntError(value)
+    }
+}
 
 impl Display for DnsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::IO(io) => write!(f, "IO error: {io}"),
+            DnsError::IO(io) => write!(f, "DnsError: {io}"),
+            DnsError::TryFromIntError(e) => write!(f, "DnsError: {e}"),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Dns {
-    header: Header,
+    id: u16,
+    flags: u16,
     questions: Vec<Question>,
     answers: Vec<Answer>,
-    // authorities: Vec<Record>,
-    // additional: Vec<Record>,
+    authorities: Vec<Answer>,
+    additionals: Vec<Answer>,
 }
 
 impl<'a> TryFrom<Packet<'a>> for Dns {
@@ -56,16 +65,135 @@ impl<'a> TryFrom<Packet<'a>> for Dns {
         }
 
         Ok(Dns {
-            header,
+            id: header.id(),
+            flags: header.flags(),
             questions,
             answers,
+            authorities: vec![],
+            additionals: vec![],
         })
     }
 }
+
+impl TryInto<OwnedPacket> for Dns {
+    type Error = DnsError;
+
+    fn try_into(self) -> Result<OwnedPacket, Self::Error> {
+        let mut writer = PacketWriter::new();
+        Header::new(
+            self.id,
+            self.flags,
+            self.questions.len().try_into()?,
+            self.answers.len().try_into()?,
+            self.authorities.len().try_into()?,
+            self.additionals.len().try_into()?,
+        )
+        .encode(&mut writer)?;
+        for question in &self.questions {
+            question.encode(&mut writer)?;
+        }
+        for answer in &self.answers {
+            answer.encode(&mut writer)?;
+        }
+
+        Ok(writer.into_inner())
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use crate::{
+        OwnedPacket,
+        dns::{
+            answer::{Answer, Data},
+            name::Name,
+            question::Question,
+        },
+    };
+
     use super::{Dns, Packet};
 
+    #[test]
+    fn dns_encode_empty_packet() {
+        let dns = Dns {
+            id: 0x1234,
+            flags: 0x8180,
+            questions: vec![],
+            answers: vec![],
+            authorities: vec![],
+            additionals: vec![],
+        };
+
+        let bytes: OwnedPacket = dns.try_into().unwrap();
+
+        assert_eq!(
+            bytes,
+            vec![
+                0x12, 0x34, // id
+                0x81, 0x80, // flags
+                0x00, 0x00, // questions
+                0x00, 0x00, // answers
+                0x00, 0x00, // authorities
+                0x00, 0x00, // additional
+            ]
+        );
+    }
+    #[test]
+    fn dns_round_trip() {
+        let original = Dns {
+            id: 0x1234,
+            flags: 0x8180,
+            questions: vec![Question {
+                name: Name::from("google.com"),
+                record_type: 1,
+                class: 1,
+            }],
+            answers: vec![Answer {
+                name: Name::from("google.com"),
+                record_type: 1,
+                class: 1,
+                ttl: 300,
+                data_length: 4,
+                data: Data::A([142, 250, 0, 1]),
+            }],
+            authorities: vec![],
+            additionals: vec![],
+        };
+
+        let bytes: OwnedPacket = original.clone().try_into().unwrap();
+
+        let decoded = Dns::try_from(bytes.as_slice()).unwrap();
+
+        assert_eq!(decoded, original);
+    }
+    #[test]
+    fn dns_encode_writes_sections_in_order() {
+        let dns = Dns {
+            id: 1,
+            flags: 0x8180,
+            questions: vec![Question {
+                name: Name::from("google.com"),
+                record_type: 1,
+                class: 1,
+            }],
+            answers: vec![],
+            authorities: vec![],
+            additionals: vec![],
+        };
+
+        let bytes: OwnedPacket = dns.try_into().unwrap();
+
+        assert_eq!(
+            bytes,
+            vec![
+                // header
+                0x00, 0x01, 0x81, 0x80, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                // question
+                6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm', 0, 0x00, 0x01, 0x00,
+                0x01,
+            ]
+        );
+    }
     #[test]
     fn dns_from_packet() {
         let packet: Packet = &[

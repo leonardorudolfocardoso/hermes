@@ -26,12 +26,7 @@ pub fn resolve(packet: Packet) -> Result<OwnedPacket, DnsError> {
     socket.send(packet)?;
     let mut buf = vec![0; 4096];
     let size = socket.recv(&mut buf)?;
-    let response = &buf[..size];
-    println!("{:?}", &buf[..size]);
-
     let dns_packet: Dns = buf[..size].try_into()?;
 
-    dbg!(&dns_packet);
-
-    Ok(response.to_owned())
+    dns_packet.try_into()
 }

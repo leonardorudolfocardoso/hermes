@@ -7,11 +7,11 @@ use crate::{
     writer::{PacketWriter, WriteResult},
 };
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Question {
-    name: Name,
-    record_type: u16,
-    class: u16,
+    pub name: Name,
+    pub record_type: u16,
+    pub class: u16,
 }
 
 impl Decode for Question {

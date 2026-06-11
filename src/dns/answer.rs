@@ -8,7 +8,7 @@ use crate::{
 
 use super::name::Name;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Data {
     A([u8; 4]),
     Aaaa([u8; 16]),
@@ -25,14 +25,14 @@ impl Encode for Data {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Answer {
-    name: Name,
-    record_type: u16,
-    class: u16,
-    ttl: u32,
-    data_length: u16,
-    data: Data,
+    pub(crate) name: Name,
+    pub(crate) record_type: u16,
+    pub(crate) class: u16,
+    pub(crate) ttl: u32,
+    pub(crate) data_length: u16,
+    pub(crate) data: Data,
 }
 
 impl Decode for Answer {

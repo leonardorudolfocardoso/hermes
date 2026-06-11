@@ -5,7 +5,7 @@ use crate::{
 };
 use std::io::Result;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Name(String);
 
 impl Decode for Name {
