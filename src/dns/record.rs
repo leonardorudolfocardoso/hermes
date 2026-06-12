@@ -26,17 +26,38 @@ impl Encode for Data {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Answer {
-    pub(crate) name: Name,
-    pub(crate) record_type: u16,
-    pub(crate) class: u16,
-    pub(crate) ttl: u32,
-    pub(crate) data_length: u16,
-    pub(crate) data: Data,
+pub struct WireRecord {
+    name: Name,
+    record_type: u16,
+    class: u16,
+    ttl: u32,
+    data_length: u16,
+    data: Data,
 }
 
-impl Decode for Answer {
-    fn decode(reader: &mut PacketReader) -> Result<Answer> {
+impl WireRecord {
+    #[cfg(test)]
+    pub fn new(
+        name: Name,
+        record_type: u16,
+        class: u16,
+        ttl: u32,
+        data_length: u16,
+        data: Data,
+    ) -> WireRecord {
+        WireRecord {
+            name,
+            record_type,
+            class,
+            ttl,
+            data_length,
+            data,
+        }
+    }
+}
+
+impl Decode for WireRecord {
+    fn decode(reader: &mut PacketReader) -> Result<WireRecord> {
         let name = Name::decode(reader)?;
         let record_type = reader.read_u16()?;
         let class = reader.read_u16()?;
@@ -49,7 +70,7 @@ impl Decode for Answer {
             _ => Data::Unknown(reader.read_vec(data_length as usize)?),
         };
 
-        Ok(Answer {
+        Ok(WireRecord {
             name,
             record_type,
             class,
@@ -60,7 +81,7 @@ impl Decode for Answer {
     }
 }
 
-impl Encode for Answer {
+impl Encode for WireRecord {
     fn encode(&self, writer: &mut PacketWriter) -> WriteResult {
         let mut n = 0;
         n += self.name.encode(writer)?;
@@ -79,8 +100,8 @@ mod test {
     use crate::{
         Decode, Encode,
         dns::{
-            answer::{Answer, Data},
             name::Name,
+            record::{Data, WireRecord},
         },
         reader::PacketReader,
         writer::PacketWriter,
@@ -88,7 +109,7 @@ mod test {
 
     #[test]
     fn answer_encode_writes_correct_bytes() {
-        let answer = Answer {
+        let answer = WireRecord {
             name: Name::from("google.com"),
             record_type: 1,
             class: 1,
@@ -116,7 +137,7 @@ mod test {
     }
     #[test]
     fn answer_round_trip() {
-        let original = Answer {
+        let original = WireRecord {
             name: Name::from("google.com"),
             record_type: 1,
             class: 1,
@@ -131,7 +152,7 @@ mod test {
 
         let mut reader = PacketReader::new(writer.get());
 
-        let decoded = Answer::decode(&mut reader).unwrap();
+        let decoded = WireRecord::decode(&mut reader).unwrap();
 
         assert_eq!(decoded, original);
     }

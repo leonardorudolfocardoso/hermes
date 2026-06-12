@@ -3,20 +3,20 @@ use std::fmt::Display;
 use crate::{
     Decode, Encode, OwnedPacket, Packet,
     dns::{
-        answer::Answer,
         flags::{Flags, QueryOrResponse},
         header::{Header, WireHeader},
         question::Question,
+        record::WireRecord,
     },
     reader::PacketReader,
     writer::PacketWriter,
 };
 
-pub mod answer;
 pub mod flags;
 pub mod header;
 pub mod name;
 pub mod question;
+pub mod record;
 
 #[derive(Debug)]
 pub enum DnsError {
@@ -49,18 +49,18 @@ impl Display for DnsError {
 pub struct Message {
     header: Header,
     questions: Vec<Question>,
-    answers: Vec<Answer>,
-    authorities: Vec<Answer>,
-    additionals: Vec<Answer>,
+    answers: Vec<WireRecord>,
+    authorities: Vec<WireRecord>,
+    additionals: Vec<WireRecord>,
 }
 
 impl Message {
     pub fn new(
         header: Header,
         questions: Vec<Question>,
-        answers: Vec<Answer>,
-        authorities: Vec<Answer>,
-        additionals: Vec<Answer>,
+        answers: Vec<WireRecord>,
+        authorities: Vec<WireRecord>,
+        additionals: Vec<WireRecord>,
     ) -> Self {
         Self {
             header,
@@ -103,7 +103,7 @@ impl<'a> TryFrom<Packet<'a>> for Message {
         }
         let mut answers = vec![];
         for _ in 0..header.answer_count() {
-            let answer = Answer::decode(&mut reader)?;
+            let answer = WireRecord::decode(&mut reader)?;
             answers.push(answer);
         }
 
@@ -145,11 +145,11 @@ mod test {
     use crate::{
         OwnedPacket,
         dns::{
-            answer::{Answer, Data},
             flags::Flags,
             header::Header,
             name::Name,
             question::Question,
+            record::{Data, WireRecord},
         },
     };
 
@@ -188,14 +188,14 @@ mod test {
                 record_type: 1,
                 class: 1,
             }],
-            answers: vec![Answer {
-                name: Name::from("google.com"),
-                record_type: 1,
-                class: 1,
-                ttl: 300,
-                data_length: 4,
-                data: Data::A([142, 250, 0, 1]),
-            }],
+            answers: vec![WireRecord::new(
+                Name::from("google.com"),
+                1,
+                1,
+                300,
+                4,
+                Data::A([142, 250, 0, 1]),
+            )],
             authorities: vec![],
             additionals: vec![],
         };
