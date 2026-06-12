@@ -207,6 +207,72 @@ mod test {
         assert_eq!(decoded, original);
     }
     #[test]
+    fn dns_round_trip_preserves_fields() {
+        let packet: Packet = &[
+            // header: id, flags, qd=1, an=1, ns=1, ar=1
+            0x12, 0x34, 0x81, 0x80, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
+            // question: example.com A IN
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0, 0x00, 0x01, 0x00,
+            0x01, // answer: example.com A IN 300 93.184.216.34
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0, 0x00, 0x01, 0x00,
+            0x01, 0x00, 0x00, 0x01, 0x2c, 0x00, 0x04, 93, 184, 216, 34,
+            // authority: example.com NS IN 300 ns1.example.com
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0, 0x00, 0x02, 0x00,
+            0x01, 0x00, 0x00, 0x01, 0x2c, 0x00, 0x11, 3, b'n', b's', b'1', 7, b'e', b'x', b'a',
+            b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0,
+            // additional: ns1.example.com A IN 300 192.0.2.1
+            3, b'n', b's', b'1', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm',
+            0, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01, 0x2c, 0x00, 0x04, 192, 0, 2, 1,
+        ];
+
+        let decoded = Message::try_from(packet).unwrap();
+
+        let expected = Message {
+            header: Header::new(0x1234, Flags::from(0x8180)),
+            questions: vec![Question {
+                name: Name::from("example.com"),
+                record_type: 1,
+                class: 1,
+            }],
+            answers: vec![WireRecord::new(
+                Name::from("example.com"),
+                1,
+                1,
+                300,
+                4,
+                Data::A([93, 184, 216, 34]),
+            )],
+            authorities: vec![WireRecord::new(
+                Name::from("example.com"),
+                2,
+                1,
+                300,
+                17,
+                Data::Ns(vec![
+                    3, b'n', b's', b'1', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c',
+                    b'o', b'm', 0,
+                ]),
+            )],
+            additionals: vec![WireRecord::new(
+                Name::from("ns1.example.com"),
+                1,
+                1,
+                300,
+                4,
+                Data::A([192, 0, 2, 1]),
+            )],
+        };
+
+        assert_eq!(decoded, expected);
+
+        let encoded: OwnedPacket = decoded.try_into().unwrap();
+        assert_eq!(encoded.as_slice(), packet);
+
+        let decoded_again = Message::try_from(encoded.as_slice()).unwrap();
+
+        assert_eq!(decoded_again, expected);
+    }
+    #[test]
     fn dns_encode_writes_sections_in_order() {
         let dns = Message {
             header: Header::new(1, Flags::from(0x8180)),
