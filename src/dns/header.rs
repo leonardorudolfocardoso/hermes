@@ -15,9 +15,14 @@ impl WireHeader {
     pub fn question_count(&self) -> u16 {
         self.question_count
     }
-
     pub fn answer_count(&self) -> u16 {
         self.answer_count
+    }
+    pub fn authority_count(&self) -> u16 {
+        self.authority_count
+    }
+    pub fn additional_count(&self) -> u16 {
+        self.additional_count
     }
 }
 

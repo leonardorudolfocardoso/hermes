@@ -35,6 +35,10 @@ pub struct WireRecord {
     data: Data,
 }
 
+pub type Answer = WireRecord;
+pub type Authority = WireRecord;
+pub type Additional = WireRecord;
+
 impl WireRecord {
     #[cfg(test)]
     pub fn new(

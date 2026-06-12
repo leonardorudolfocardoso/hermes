@@ -6,7 +6,7 @@ use crate::{
         flags::{Flags, QueryOrResponse},
         header::{Header, WireHeader},
         question::Question,
-        record::WireRecord,
+        record::{Additional, Answer, Authority, WireRecord},
     },
     reader::PacketReader,
     writer::PacketWriter,
@@ -96,23 +96,17 @@ impl<'a> TryFrom<Packet<'a>> for Message {
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
         let mut reader = PacketReader::new(value);
         let header = WireHeader::decode(&mut reader)?;
-        let mut questions = Vec::new();
-        for _ in 0..header.question_count() {
-            let question = Question::decode(&mut reader)?;
-            questions.push(question);
-        }
-        let mut answers = vec![];
-        for _ in 0..header.answer_count() {
-            let answer = WireRecord::decode(&mut reader)?;
-            answers.push(answer);
-        }
+        let questions = Question::decode_n(&mut reader, header.question_count().into())?;
+        let answers = Answer::decode_n(&mut reader, header.answer_count().into())?;
+        let authorities = Authority::decode_n(&mut reader, header.authority_count().into())?;
+        let additionals = Additional::decode_n(&mut reader, header.additional_count().into())?;
 
         Ok(Message {
             header: header.into(),
             questions,
             answers,
-            authorities: vec![],
-            additionals: vec![],
+            authorities,
+            additionals,
         })
     }
 }
