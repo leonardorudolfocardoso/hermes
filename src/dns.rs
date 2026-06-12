@@ -2,7 +2,11 @@ use std::fmt::Display;
 
 use crate::{
     Decode, Encode, OwnedPacket, Packet,
-    dns::{answer::Answer, flags::Flags, header::Header, question::Question},
+    dns::{
+        answer::Answer,
+        header::{Header, WireHeader},
+        question::Question,
+    },
     reader::PacketReader,
     writer::PacketWriter,
 };
@@ -40,8 +44,7 @@ impl Display for DnsError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Dns {
-    id: u16,
-    flags: Flags,
+    header: Header,
     questions: Vec<Question>,
     answers: Vec<Answer>,
     authorities: Vec<Answer>,
@@ -53,7 +56,7 @@ impl<'a> TryFrom<Packet<'a>> for Dns {
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
         let mut reader = PacketReader::new(value);
-        let header = Header::decode(&mut reader)?;
+        let header = WireHeader::decode(&mut reader)?;
         let mut questions = Vec::new();
         for _ in 0..header.question_count() {
             let question = Question::decode(&mut reader)?;
@@ -66,8 +69,7 @@ impl<'a> TryFrom<Packet<'a>> for Dns {
         }
 
         Ok(Dns {
-            id: header.id(),
-            flags: header.flags(),
+            header: header.into(),
             questions,
             answers,
             authorities: vec![],
@@ -81,15 +83,13 @@ impl TryInto<OwnedPacket> for Dns {
 
     fn try_into(self) -> Result<OwnedPacket, Self::Error> {
         let mut writer = PacketWriter::new();
-        Header::new(
-            self.id,
-            self.flags,
-            self.questions.len().try_into()?,
-            self.answers.len().try_into()?,
-            self.authorities.len().try_into()?,
-            self.additionals.len().try_into()?,
-        )
-        .encode(&mut writer)?;
+        writer.write_u16(self.header.id())?;
+        self.header.flags().encode(&mut writer)?;
+        writer.write_u16(self.questions.len().try_into()?)?;
+        writer.write_u16(self.answers.len().try_into()?)?;
+        writer.write_u16(self.authorities.len().try_into()?)?;
+        writer.write_u16(self.additionals.len().try_into()?)?;
+
         for question in &self.questions {
             question.encode(&mut writer)?;
         }
@@ -108,6 +108,7 @@ mod test {
         dns::{
             answer::{Answer, Data},
             flags::Flags,
+            header::Header,
             name::Name,
             question::Question,
         },
@@ -118,8 +119,7 @@ mod test {
     #[test]
     fn dns_encode_empty_packet() {
         let dns = Dns {
-            id: 0x1234,
-            flags: Flags::from(0x8180),
+            header: Header::new(0x1234, Flags::from(0x8180)),
             questions: vec![],
             answers: vec![],
             authorities: vec![],
@@ -143,8 +143,7 @@ mod test {
     #[test]
     fn dns_round_trip() {
         let original = Dns {
-            id: 0x1234,
-            flags: Flags::from(0x8180),
+            header: Header::new(0x1234, Flags::from(0x8180)),
             questions: vec![Question {
                 name: Name::from("google.com"),
                 record_type: 1,
@@ -171,8 +170,7 @@ mod test {
     #[test]
     fn dns_encode_writes_sections_in_order() {
         let dns = Dns {
-            id: 1,
-            flags: Flags::from(0x8180),
+            header: Header::new(1, Flags::from(0x8180)),
             questions: vec![Question {
                 name: Name::from("google.com"),
                 record_type: 1,
