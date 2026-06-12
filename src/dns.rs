@@ -46,7 +46,7 @@ impl Display for DnsError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Dns {
+pub struct Message {
     header: Header,
     questions: Vec<Question>,
     answers: Vec<Answer>,
@@ -54,7 +54,7 @@ pub struct Dns {
     additionals: Vec<Answer>,
 }
 
-impl Dns {
+impl Message {
     pub fn new(
         header: Header,
         questions: Vec<Question>,
@@ -90,7 +90,7 @@ impl Dns {
     }
 }
 
-impl<'a> TryFrom<Packet<'a>> for Dns {
+impl<'a> TryFrom<Packet<'a>> for Message {
     type Error = DnsError;
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
@@ -107,7 +107,7 @@ impl<'a> TryFrom<Packet<'a>> for Dns {
             answers.push(answer);
         }
 
-        Ok(Dns {
+        Ok(Message {
             header: header.into(),
             questions,
             answers,
@@ -117,7 +117,7 @@ impl<'a> TryFrom<Packet<'a>> for Dns {
     }
 }
 
-impl TryInto<OwnedPacket> for Dns {
+impl TryInto<OwnedPacket> for Message {
     type Error = DnsError;
 
     fn try_into(self) -> Result<OwnedPacket, Self::Error> {
@@ -153,11 +153,11 @@ mod test {
         },
     };
 
-    use super::{Dns, Packet};
+    use super::{Message, Packet};
 
     #[test]
     fn dns_encode_empty_packet() {
-        let dns = Dns {
+        let dns = Message {
             header: Header::new(0x1234, Flags::from(0x8180)),
             questions: vec![],
             answers: vec![],
@@ -181,7 +181,7 @@ mod test {
     }
     #[test]
     fn dns_round_trip() {
-        let original = Dns {
+        let original = Message {
             header: Header::new(0x1234, Flags::from(0x8180)),
             questions: vec![Question {
                 name: Name::from("google.com"),
@@ -202,13 +202,13 @@ mod test {
 
         let bytes: OwnedPacket = original.clone().try_into().unwrap();
 
-        let decoded = Dns::try_from(bytes.as_slice()).unwrap();
+        let decoded = Message::try_from(bytes.as_slice()).unwrap();
 
         assert_eq!(decoded, original);
     }
     #[test]
     fn dns_encode_writes_sections_in_order() {
-        let dns = Dns {
+        let dns = Message {
             header: Header::new(1, Flags::from(0x8180)),
             questions: vec![Question {
                 name: Name::from("google.com"),
@@ -241,7 +241,7 @@ mod test {
             41, 2, 0, 0, 0, 0, 0, 0, 0,
         ];
 
-        let packet: Dns = packet.try_into().unwrap();
+        let packet: Message = packet.try_into().unwrap();
 
         assert_eq!(packet.questions.len(), 1);
         assert_eq!(packet.answers.len(), 1);
