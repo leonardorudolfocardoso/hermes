@@ -10,6 +10,7 @@ pub struct PacketWriter {
 }
 
 impl PacketWriter {
+    #[cfg(test)]
     pub fn get(&self) -> &OwnedPacket {
         &self.inner
     }

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{
     Decode, Encode,
     reader::PacketReader,
@@ -33,6 +35,12 @@ pub enum ResponseCode {
 }
 
 impl Flags {
+    const RESPONSE_MASK: u16 = 1 << 15;
+
+    pub fn into_response(self) -> Self {
+        Self(self.0 | Self::RESPONSE_MASK)
+    }
+
     pub fn query_or_response(&self) -> QueryOrResponse {
         if self.0 & (1 << 15) == 0 {
             QueryOrResponse::Query

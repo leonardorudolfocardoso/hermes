@@ -4,6 +4,7 @@ use crate::{
     Decode, Encode, OwnedPacket, Packet,
     dns::{
         answer::Answer,
+        flags::{Flags, QueryOrResponse},
         header::{Header, WireHeader},
         question::Question,
     },
@@ -21,6 +22,7 @@ pub mod question;
 pub enum DnsError {
     IO(std::io::Error),
     TryFromIntError(std::num::TryFromIntError),
+    MessageIsAlreadyAResponse,
 }
 impl From<std::io::Error> for DnsError {
     fn from(value: std::io::Error) -> Self {
@@ -38,6 +40,7 @@ impl Display for DnsError {
         match self {
             DnsError::IO(io) => write!(f, "DnsError: {io}"),
             DnsError::TryFromIntError(e) => write!(f, "DnsError: {e}"),
+            DnsError::MessageIsAlreadyAResponse => todo!(),
         }
     }
 }
@@ -49,6 +52,42 @@ pub struct Dns {
     answers: Vec<Answer>,
     authorities: Vec<Answer>,
     additionals: Vec<Answer>,
+}
+
+impl Dns {
+    pub fn new(
+        header: Header,
+        questions: Vec<Question>,
+        answers: Vec<Answer>,
+        authorities: Vec<Answer>,
+        additionals: Vec<Answer>,
+    ) -> Self {
+        Self {
+            header,
+            questions,
+            answers,
+            authorities,
+            additionals,
+        }
+    }
+
+    pub fn id(&self) -> u16 {
+        self.header.id()
+    }
+
+    pub fn flags(&self) -> Flags {
+        self.header.flags()
+    }
+
+    pub fn try_into_response(self) -> Result<Self, DnsError> {
+        match self.header.flags().query_or_response() {
+            QueryOrResponse::Query => Ok(Self {
+                header: self.header.with_flags(self.flags().into_response()),
+                ..self
+            }),
+            QueryOrResponse::Response => Err(DnsError::MessageIsAlreadyAResponse),
+        }
+    }
 }
 
 impl<'a> TryFrom<Packet<'a>> for Dns {

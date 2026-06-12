@@ -12,29 +12,6 @@ pub struct WireHeader {
 }
 
 impl WireHeader {
-    pub fn new(
-        id: u16,
-        flags: Flags,
-        question_count: u16,
-        answer_count: u16,
-        authority_count: u16,
-        additional_count: u16,
-    ) -> Self {
-        Self {
-            id,
-            flags,
-            question_count,
-            answer_count,
-            authority_count,
-            additional_count,
-        }
-    }
-    pub fn id(&self) -> u16 {
-        self.id
-    }
-    pub fn flags(&self) -> Flags {
-        self.flags
-    }
     pub fn question_count(&self) -> u16 {
         self.question_count
     }
@@ -50,8 +27,12 @@ pub struct Header {
     flags: Flags,
 }
 impl Header {
+    #[cfg(test)]
     pub fn new(id: u16, flags: Flags) -> Self {
         Self { id, flags }
+    }
+    pub fn with_flags(self, flags: Flags) -> Self {
+        Self { flags, ..self }
     }
     pub fn id(&self) -> u16 {
         self.id
