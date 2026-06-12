@@ -129,6 +129,12 @@ impl TryInto<OwnedPacket> for Message {
         for answer in &self.answers {
             answer.encode(&mut writer)?;
         }
+        for authority in &self.authorities {
+            authority.encode(&mut writer)?;
+        }
+        for additional in &self.additionals {
+            additional.encode(&mut writer)?;
+        }
 
         Ok(writer.into_inner())
     }
