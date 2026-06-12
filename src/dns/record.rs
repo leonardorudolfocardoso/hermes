@@ -12,6 +12,7 @@ use super::name::Name;
 pub enum Data {
     A([u8; 4]),
     Aaaa([u8; 16]),
+    Ns(Vec<u8>),
     Unknown(Vec<u8>),
 }
 
@@ -20,6 +21,7 @@ impl Encode for Data {
         match self {
             Self::A(buf) => writer.write(buf),
             Data::Aaaa(buf) => writer.write(buf),
+            Data::Ns(buf) => writer.write(buf),
             Data::Unknown(buf) => writer.write(buf),
         }
     }
@@ -70,8 +72,9 @@ impl Decode for WireRecord {
 
         let data = match record_type {
             1 => Data::A(reader.read_array()?),
+            2 => Data::Ns(reader.read_vec(data_length.into())?),
             28 => Data::Aaaa(reader.read_array()?),
-            _ => Data::Unknown(reader.read_vec(data_length as usize)?),
+            _ => Data::Unknown(reader.read_vec(data_length.into())?),
         };
 
         Ok(WireRecord {
