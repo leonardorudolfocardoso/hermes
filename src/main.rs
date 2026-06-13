@@ -1,6 +1,6 @@
 use std::{error::Error, net::UdpSocket};
 
-use dns_resolver::resolve;
+use hermes::resolve;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let socket = UdpSocket::bind("127.0.0.1:8080")?;

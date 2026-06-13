@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "dns-resolver"
+name = "hermes"
 version = "0.1.0"
