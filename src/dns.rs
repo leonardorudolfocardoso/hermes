@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::{
     Decode, Encode, OwnedPacket, Packet,
     dns::{
-        flags::{Flags, QueryOrResponse},
+        flags::{Flags, ResponseCode},
         header::{Header, WireHeader},
         question::Question,
         record::{Additional, Answer, Authority, WireRecord},
@@ -22,7 +22,6 @@ pub mod record;
 pub enum DnsError {
     IO(std::io::Error),
     TryFromIntError(std::num::TryFromIntError),
-    MessageIsAlreadyAResponse,
 }
 impl From<std::io::Error> for DnsError {
     fn from(value: std::io::Error) -> Self {
@@ -40,7 +39,6 @@ impl Display for DnsError {
         match self {
             DnsError::IO(io) => write!(f, "DnsError: {io}"),
             DnsError::TryFromIntError(e) => write!(f, "DnsError: {e}"),
-            DnsError::MessageIsAlreadyAResponse => todo!(),
         }
     }
 }
@@ -55,37 +53,42 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn new(
-        header: Header,
-        questions: Vec<Question>,
-        answers: Vec<WireRecord>,
-        authorities: Vec<WireRecord>,
-        additionals: Vec<WireRecord>,
-    ) -> Self {
-        Self {
-            header,
-            questions,
-            answers,
-            authorities,
-            additionals,
-        }
-    }
-
-    pub fn id(&self) -> u16 {
-        self.header.id()
-    }
-
     pub fn flags(&self) -> Flags {
         self.header.flags()
     }
 
-    pub fn try_into_response(self) -> Result<Self, DnsError> {
-        match self.header.flags().query_or_response() {
-            QueryOrResponse::Query => Ok(Self {
-                header: self.header.with_flags(self.flags().into_response()),
-                ..self
-            }),
-            QueryOrResponse::Response => Err(DnsError::MessageIsAlreadyAResponse),
+    pub fn questions(&self) -> &[Question] {
+        &self.questions
+    }
+
+    pub fn answers(&self) -> &[WireRecord] {
+        &self.answers
+    }
+
+    pub fn authorities(&self) -> &[WireRecord] {
+        &self.authorities
+    }
+
+    pub fn additionals(&self) -> &[WireRecord] {
+        &self.additionals
+    }
+
+    pub fn into_response(self) -> Self {
+        Self {
+            header: self.header.into_response(),
+            ..self
+        }
+    }
+    pub fn with_recursion_available(self) -> Self {
+        Self {
+            header: self.header.with_recursion_available(),
+            ..self
+        }
+    }
+    pub fn with_response_code(self, code: ResponseCode) -> Self {
+        Self {
+            header: self.header.with_response_code(code),
+            ..self
         }
     }
 }
@@ -248,10 +251,7 @@ mod test {
                 1,
                 300,
                 17,
-                Data::Ns(vec![
-                    3, b'n', b's', b'1', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c',
-                    b'o', b'm', 0,
-                ]),
+                Data::Ns(Name::from("ns1.example.com")),
             )],
             additionals: vec![WireRecord::new(
                 Name::from("ns1.example.com"),
