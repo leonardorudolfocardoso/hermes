@@ -1,4 +1,8 @@
-use crate::{Decode, dns::flags::Flags, reader::PacketReader};
+use crate::{
+    Decode,
+    dns::flags::{Flags, ResponseCode},
+    reader::PacketReader,
+};
 use std::io::Result;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -36,14 +40,31 @@ impl Header {
     pub fn new(id: u16, flags: Flags) -> Self {
         Self { id, flags }
     }
-    pub fn with_flags(self, flags: Flags) -> Self {
-        Self { flags, ..self }
-    }
     pub fn id(&self) -> u16 {
         self.id
     }
     pub fn flags(&self) -> Flags {
         self.flags
+    }
+    pub fn with_recursion_available(self) -> Self {
+        Self {
+            flags: self.flags.with_recursion_available(),
+            ..self
+        }
+    }
+
+    pub fn into_response(self) -> Header {
+        Self {
+            flags: self.flags.into_response(),
+            ..self
+        }
+    }
+
+    pub fn with_response_code(self, code: ResponseCode) -> Header {
+        Self {
+            flags: self.flags.with_response_code(code),
+            ..self
+        }
     }
 }
 
