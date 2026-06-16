@@ -1,4 +1,4 @@
-use std::io::Result;
+use std::{fmt::Display, io::Result};
 
 use crate::{
     Decode, Encode,
@@ -15,10 +15,10 @@ pub enum Data {
     A([u8; 4]),
     /// A host IpV6 address.
     Aaaa([u8; 16]),
-    Ns(Vec<u8>),
     /// An authoritative name server.
+    Ns(Name),
     /// An unknown data
-    Unknown(Vec<u8>),
+    Unknown { _type: u16, value: Vec<u8> },
 }
 
 impl Encode for Data {
@@ -26,8 +26,31 @@ impl Encode for Data {
         match self {
             Self::A(buf) => writer.write(buf),
             Data::Aaaa(buf) => writer.write(buf),
-            Data::Ns(buf) => writer.write(buf),
-            Data::Unknown(buf) => writer.write(buf),
+            Data::Ns(name) => name.encode(writer),
+            Data::Unknown {
+                _type: _,
+                value: buf,
+            } => writer.write(buf),
+        }
+    }
+}
+
+impl Data {
+    pub fn len(&self) -> usize {
+        match self {
+            Data::A(bytes) => bytes.len(),
+            Data::Aaaa(bytes) => bytes.len(),
+            Data::Ns(name) => name.len(),
+            Data::Unknown {
+                _type: _,
+                value: bytes,
+            } => bytes.len(),
+        }
+    }
+    pub fn as_ns_name(&self) -> Option<&Name> {
+        match self {
+            Data::Ns(name) => Some(name),
+            _ => None,
         }
     }
 }
@@ -42,9 +65,66 @@ pub struct WireRecord {
     data: Data,
 }
 
-pub type Answer = WireRecord;
-pub type Authority = WireRecord;
-pub type Additional = WireRecord;
+#[derive(Debug, PartialEq, Eq)]
+pub enum RecordError {
+    InconsistentDataLength,
+}
+impl Display for RecordError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RecordError::InconsistentDataLength => write!(
+                f,
+                "InconsistentDataLength: data length is inconsistent with described"
+            ),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Record {
+    name: Name,
+    data: Data,
+    ttl: u32,
+    class: u16,
+}
+impl Record {
+    #[cfg(test)]
+    pub fn new(name: Name, class: u16, ttl: u32, data: Data) -> Self {
+        Self {
+            name,
+            class,
+            ttl,
+            data,
+        }
+    }
+}
+impl TryFrom<WireRecord> for Record {
+    type Error = RecordError;
+
+    fn try_from(value: WireRecord) -> std::result::Result<Self, Self::Error> {
+        let WireRecord {
+            name,
+            record_type: _,
+            class,
+            ttl,
+            data_length,
+            data,
+        } = value;
+        if data_length != data.len() as u16 {
+            return Err(Self::Error::InconsistentDataLength);
+        }
+        Ok(Self {
+            name,
+            data,
+            ttl,
+            class,
+        })
+    }
+}
+
+pub type WireAnswer = WireRecord;
+pub type WireAuthority = WireRecord;
+pub type WireAdditional = WireRecord;
 
 impl WireRecord {
     #[cfg(test)]
@@ -67,6 +147,30 @@ impl WireRecord {
     }
 }
 
+impl From<Record> for WireRecord {
+    fn from(value: Record) -> Self {
+        let Record {
+            name,
+            data,
+            ttl,
+            class,
+        } = value;
+        Self {
+            name,
+            record_type: match data {
+                Data::A(_) => 1,
+                Data::Aaaa(_) => 28,
+                Data::Ns(_) => 2,
+                Data::Unknown { _type, .. } => _type,
+            },
+            class,
+            ttl,
+            data_length: data.len() as u16,
+            data,
+        }
+    }
+}
+
 impl Decode for WireRecord {
     fn decode(reader: &mut PacketReader) -> Result<WireRecord> {
         let name = Name::decode(reader)?;
@@ -77,9 +181,12 @@ impl Decode for WireRecord {
 
         let data = match record_type {
             1 => Data::A(reader.read_array()?),
-            2 => Data::Ns(reader.read_vec(data_length.into())?),
+            2 => Data::Ns(Name::decode(reader)?),
             28 => Data::Aaaa(reader.read_array()?),
-            _ => Data::Unknown(reader.read_vec(data_length.into())?),
+            _type => Data::Unknown {
+                _type,
+                value: reader.read_vec(data_length.into())?,
+            },
         };
 
         Ok(WireRecord {
@@ -93,15 +200,24 @@ impl Decode for WireRecord {
     }
 }
 
-impl Encode for WireRecord {
+impl Encode for Record {
     fn encode(&self, writer: &mut PacketWriter) -> WriteResult {
+        let mut data_writer = PacketWriter::new();
+        self.data.encode(&mut data_writer)?;
+        let data = data_writer.into_inner();
+
         let mut n = 0;
         n += self.name.encode(writer)?;
-        n += writer.write_u16(self.record_type)?;
+        n += writer.write_u16(match self.data {
+            Data::A(_) => 1,
+            Data::Ns(_) => 2,
+            Data::Aaaa(_) => 28,
+            Data::Unknown { _type, .. } => _type,
+        })?;
         n += writer.write_u16(self.class)?;
         n += writer.write_u32(self.ttl)?;
-        n += writer.write_u16(self.data_length)?;
-        n += self.data.encode(writer)?;
+        n += writer.write_u16(data.len().try_into().unwrap())?;
+        n += writer.write(&data)?;
 
         Ok(n)
     }
@@ -113,7 +229,7 @@ mod test {
         Decode, Encode,
         dns::{
             name::Name,
-            record::{Data, WireRecord},
+            record::{Data, Record, WireRecord},
         },
         reader::PacketReader,
         writer::PacketWriter,
@@ -121,12 +237,10 @@ mod test {
 
     #[test]
     fn answer_encode_writes_correct_bytes() {
-        let answer = WireRecord {
+        let answer = Record {
             name: Name::from("google.com"),
-            record_type: 1,
             class: 1,
             ttl: 300,
-            data_length: 4,
             data: Data::A([142, 250, 0, 1]),
         };
 
@@ -149,12 +263,10 @@ mod test {
     }
     #[test]
     fn answer_round_trip() {
-        let original = WireRecord {
+        let original = Record {
             name: Name::from("google.com"),
-            record_type: 1,
             class: 1,
             ttl: 300,
-            data_length: 4,
             data: Data::A([142, 250, 0, 1]),
         };
 
@@ -166,6 +278,6 @@ mod test {
 
         let decoded = WireRecord::decode(&mut reader).unwrap();
 
-        assert_eq!(decoded, original);
+        assert_eq!(decoded, original.try_into().unwrap());
     }
 }

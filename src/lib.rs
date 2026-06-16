@@ -15,8 +15,11 @@ use crate::{
 
 trait Decode: Sized {
     fn decode(reader: &mut PacketReader) -> std::io::Result<Self>;
-    fn decode_n(reader: &mut PacketReader, n: usize) -> std::io::Result<Vec<Self>> {
-        (0..n).map(|_| Self::decode(reader)).collect()
+    fn decode_n(
+        reader: &mut PacketReader,
+        n: usize,
+    ) -> impl Iterator<Item = std::io::Result<Self>> {
+        (0..n).map(|_| Self::decode(reader))
     }
 }
 trait Encode: Sized {

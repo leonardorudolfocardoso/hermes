@@ -6,7 +6,7 @@ use crate::{
         flags::{Flags, ResponseCode},
         header::{Header, WireHeader},
         question::Question,
-        record::{Additional, Answer, Authority, WireRecord},
+        record::{Record, RecordError, WireAdditional, WireAnswer, WireAuthority, WireRecord},
     },
     reader::PacketReader,
     writer::PacketWriter,
@@ -22,6 +22,7 @@ pub mod record;
 pub enum DnsError {
     IO(std::io::Error),
     TryFromIntError(std::num::TryFromIntError),
+    RecordError(RecordError),
 }
 impl From<std::io::Error> for DnsError {
     fn from(value: std::io::Error) -> Self {
@@ -33,12 +34,18 @@ impl From<std::num::TryFromIntError> for DnsError {
         DnsError::TryFromIntError(value)
     }
 }
+impl From<RecordError> for DnsError {
+    fn from(value: RecordError) -> Self {
+        Self::RecordError(value)
+    }
+}
 
 impl Display for DnsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DnsError::IO(io) => write!(f, "DnsError: {io}"),
             DnsError::TryFromIntError(e) => write!(f, "DnsError: {e}"),
+            DnsError::RecordError(e) => write!(f, "DnsError: {e}"),
         }
     }
 }
@@ -47,9 +54,9 @@ impl Display for DnsError {
 pub struct Message {
     header: Header,
     questions: Vec<Question>,
-    answers: Vec<WireRecord>,
-    authorities: Vec<WireRecord>,
-    additionals: Vec<WireRecord>,
+    answers: Vec<Record>,
+    authorities: Vec<Record>,
+    additionals: Vec<Record>,
 }
 
 impl Message {
@@ -61,15 +68,15 @@ impl Message {
         &self.questions
     }
 
-    pub fn answers(&self) -> &[WireRecord] {
+    pub fn answers(&self) -> &[Record] {
         &self.answers
     }
 
-    pub fn authorities(&self) -> &[WireRecord] {
+    pub fn authorities(&self) -> &[Record] {
         &self.authorities
     }
 
-    pub fn additionals(&self) -> &[WireRecord] {
+    pub fn additionals(&self) -> &[Record] {
         &self.additionals
     }
 
@@ -99,10 +106,17 @@ impl<'a> TryFrom<Packet<'a>> for Message {
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
         let mut reader = PacketReader::new(value);
         let header = WireHeader::decode(&mut reader)?;
-        let questions = Question::decode_n(&mut reader, header.question_count().into())?;
-        let answers = Answer::decode_n(&mut reader, header.answer_count().into())?;
-        let authorities = Authority::decode_n(&mut reader, header.authority_count().into())?;
-        let additionals = Additional::decode_n(&mut reader, header.additional_count().into())?;
+        let questions = Question::decode_n(&mut reader, header.question_count().into())
+            .collect::<std::io::Result<Vec<_>>>()?;
+        let answers = WireAnswer::decode_n(&mut reader, header.answer_count().into())
+            .map(|ar| ar?.try_into().map_err(Self::Error::from))
+            .collect::<Result<Vec<_>, Self::Error>>()?;
+        let authorities = WireAuthority::decode_n(&mut reader, header.authority_count().into())
+            .map(|ar| ar?.try_into().map_err(Self::Error::from))
+            .collect::<Result<Vec<_>, Self::Error>>()?;
+        let additionals = WireAdditional::decode_n(&mut reader, header.additional_count().into())
+            .map(|ar| ar?.try_into().map_err(Self::Error::from))
+            .collect::<Result<Vec<_>, Self::Error>>()?;
 
         Ok(Message {
             header: header.into(),
@@ -152,7 +166,7 @@ mod test {
             header::Header,
             name::Name,
             question::Question,
-            record::{Data, WireRecord},
+            record::{Data, Record},
         },
     };
 
@@ -191,12 +205,10 @@ mod test {
                 record_type: 1,
                 class: 1,
             }],
-            answers: vec![WireRecord::new(
+            answers: vec![Record::new(
                 Name::from("google.com"),
                 1,
-                1,
                 300,
-                4,
                 Data::A([142, 250, 0, 1]),
             )],
             authorities: vec![],
@@ -237,28 +249,22 @@ mod test {
                 record_type: 1,
                 class: 1,
             }],
-            answers: vec![WireRecord::new(
+            answers: vec![Record::new(
                 Name::from("example.com"),
                 1,
-                1,
                 300,
-                4,
                 Data::A([93, 184, 216, 34]),
             )],
-            authorities: vec![WireRecord::new(
+            authorities: vec![Record::new(
                 Name::from("example.com"),
                 2,
-                1,
                 300,
-                17,
                 Data::Ns(Name::from("ns1.example.com")),
             )],
-            additionals: vec![WireRecord::new(
+            additionals: vec![Record::new(
                 Name::from("ns1.example.com"),
                 1,
-                1,
                 300,
-                4,
                 Data::A([192, 0, 2, 1]),
             )],
         };
