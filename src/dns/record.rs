@@ -8,11 +8,16 @@ use crate::{
 
 use super::name::Name;
 
+/// A data enum used by [[`Record`]]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Data {
+    /// A host IpV4 address.
     A([u8; 4]),
+    /// A host IpV6 address.
     Aaaa([u8; 16]),
     Ns(Vec<u8>),
+    /// An authoritative name server.
+    /// An unknown data
     Unknown(Vec<u8>),
 }
 
