@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use crate::{
     Decode, Encode,
     reader::PacketReader,
@@ -23,7 +21,7 @@ pub enum Opcode {
     Unknown(u8),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ResponseCode {
     NoError,
     FormatError,
@@ -34,11 +32,36 @@ pub enum ResponseCode {
     Unknown(u8),
 }
 
+impl From<ResponseCode> for u16 {
+    fn from(val: ResponseCode) -> Self {
+        match val {
+            ResponseCode::NoError => 0,
+            ResponseCode::FormatError => 1,
+            ResponseCode::ServerFailure => 2,
+            ResponseCode::NameError => 3,
+            ResponseCode::NotImplemented => 4,
+            ResponseCode::Refused => 5,
+            ResponseCode::Unknown(u) => u.into(),
+        }
+    }
+}
+
 impl Flags {
     const RESPONSE_MASK: u16 = 1 << 15;
+    const RECURSION_AVAILABLE_MASK: u16 = 1 << 7;
 
     pub fn into_response(self) -> Self {
         Self(self.0 | Self::RESPONSE_MASK)
+    }
+
+    pub fn with_recursion_available(self) -> Self {
+        Self(self.0 | Self::RECURSION_AVAILABLE_MASK)
+    }
+
+    pub fn with_response_code(self, code: ResponseCode) -> Flags {
+        let cleared = self.0 & !0x000f;
+        let mask: u16 = code.into();
+        Self(cleared | mask)
     }
 
     pub fn query_or_response(&self) -> QueryOrResponse {
