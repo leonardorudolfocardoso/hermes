@@ -1,9 +1,10 @@
-use std::{error::Error, net::UdpSocket};
+use std::{env::args, error::Error, net::UdpSocket};
 
 use hermes::resolve;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let socket = UdpSocket::bind("127.0.0.1:8080")?;
+    let addr = args().nth(1).expect("missing addr.\nusage: hermes <addr>");
+    let socket = UdpSocket::bind(addr)?;
     let mut buf = [0; 512];
     loop {
         let (n, addr) = socket.recv_from(&mut buf)?;
