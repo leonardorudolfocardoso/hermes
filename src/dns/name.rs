@@ -85,6 +85,7 @@ impl Display for Name {
 #[cfg(test)]
 mod test {
     use crate::{Decode, Encode, reader::PacketReader, writer::PacketWriter};
+    use std::io::ErrorKind;
 
     use super::Name;
 
@@ -177,5 +178,16 @@ mod test {
         let mut reader = PacketReader::new(writer.get());
         let read = Name::decode(&mut reader).unwrap();
         assert_eq!(read, Name::from("google.com"));
+    }
+
+    #[test]
+    fn decode_truncated_label_returns_eof() {
+        let packet = [3, b'w', b'w'];
+
+        let mut reader = PacketReader::new(&packet);
+
+        let err = Name::decode(&mut reader).unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::UnexpectedEof);
     }
 }

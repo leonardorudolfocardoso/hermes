@@ -226,6 +226,7 @@ mod test {
         reader::PacketReader,
         writer::PacketWriter,
     };
+    use std::io::ErrorKind;
 
     #[test]
     fn answer_encode_writes_correct_bytes() {
@@ -271,5 +272,46 @@ mod test {
         let decoded = WireRecord::decode(&mut reader).unwrap();
 
         assert_eq!(decoded, original.try_into().unwrap());
+    }
+
+    #[test]
+    fn unknown_record_round_trip_preserves_bytes() {
+        let original = Record {
+            name: Name::from("example.com"),
+            class: 1,
+            ttl: 60,
+            data: Data::Unknown {
+                _type: 99,
+                value: vec![1, 2, 3, 4],
+            },
+        };
+
+        let mut writer = PacketWriter::new();
+
+        original.encode(&mut writer).unwrap();
+
+        let mut reader = PacketReader::new(writer.get());
+
+        let decoded = WireRecord::decode(&mut reader).unwrap();
+
+        assert_eq!(decoded, original.try_into().unwrap());
+    }
+
+    #[test]
+    fn decode_truncated_record_returns_eof() {
+        let packet = [
+            6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm', 0, // name
+            0x00, 0x01, // type
+            0x00, 0x01, // class
+            0x00, 0x00, 0x01, 0x2c, // ttl
+            0x00, 0x04, // rdlength
+            142, 250, 0, // truncated A record
+        ];
+
+        let mut reader = PacketReader::new(&packet);
+
+        let err = WireRecord::decode(&mut reader).unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::UnexpectedEof);
     }
 }

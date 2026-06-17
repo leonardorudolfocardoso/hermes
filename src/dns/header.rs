@@ -91,3 +91,38 @@ impl Decode for WireHeader {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::WireHeader;
+    use crate::{Decode, reader::PacketReader};
+    use std::io::ErrorKind;
+
+    #[test]
+    fn decode_truncated_header_returns_eof() {
+        let packet = [0x12, 0x34, 0x81, 0x80, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00];
+
+        let mut reader = PacketReader::new(&packet);
+
+        let err = WireHeader::decode(&mut reader).unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn decode_header_reads_all_counts() {
+        let packet = [
+            0x12, 0x34, 0x81, 0x80, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x04,
+        ];
+
+        let mut reader = PacketReader::new(&packet);
+
+        let header = WireHeader::decode(&mut reader).unwrap();
+
+        assert_eq!(header.question_count(), 1);
+        assert_eq!(header.answer_count(), 2);
+        assert_eq!(header.authority_count(), 3);
+        assert_eq!(header.additional_count(), 4);
+        assert_eq!(header, WireHeader::decode(&mut PacketReader::new(&packet)).unwrap());
+    }
+}

@@ -46,6 +46,7 @@ mod test {
         reader::PacketReader,
         writer::PacketWriter,
     };
+    use std::io::ErrorKind;
 
     #[test]
     fn question_encode_writes_correct_bytes() {
@@ -84,5 +85,18 @@ mod test {
         let decoded = Question::decode(&mut reader).unwrap();
 
         assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn question_decode_returns_eof_when_truncated_after_name() {
+        let packet = [
+            6, b'g', b'o', b'o', b'g', b'l', b'e', 3, b'c', b'o', b'm', 0, 0x00,
+        ];
+
+        let mut reader = PacketReader::new(&packet);
+
+        let err = Question::decode(&mut reader).unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::UnexpectedEof);
     }
 }
