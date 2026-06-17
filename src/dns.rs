@@ -109,16 +109,16 @@ impl<'a> TryFrom<Packet<'a>> for Message {
         let questions = Question::decode_n(&mut reader, header.question_count().into())?;
         let answers = WireRecord::decode_n(&mut reader, header.answer_count().into())?
             .into_iter()
-            .map(Into::into)
-            .collect();
+            .map(Record::try_from)
+            .collect::<Result<Vec<_>, RecordError>>()?;
         let authorities = WireRecord::decode_n(&mut reader, header.authority_count().into())?
             .into_iter()
-            .map(Into::into)
-            .collect();
+            .map(Record::try_from)
+            .collect::<Result<Vec<_>, RecordError>>()?;
         let additionals = WireRecord::decode_n(&mut reader, header.additional_count().into())?
             .into_iter()
-            .map(Into::into)
-            .collect();
+            .map(Record::try_from)
+            .collect::<Result<Vec<_>, RecordError>>()?;
 
         Ok(Message {
             header: header.into(),

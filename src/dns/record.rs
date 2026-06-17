@@ -1,4 +1,4 @@
-use std::{fmt::Display, io::Result};
+use std::{fmt::Display, io::Result as IoResult};
 
 use crate::{
     Decode, Encode,
@@ -48,14 +48,17 @@ pub struct WireRecord {
 #[derive(Debug, PartialEq, Eq)]
 pub enum RecordError {
     InconsistentDataLength,
+    InconsistentRecordType,
 }
 impl Display for RecordError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RecordError::InconsistentDataLength => write!(
-                f,
-                "InconsistentDataLength: data length is inconsistent with described"
-            ),
+            RecordError::InconsistentDataLength => {
+                write!(f, "InconsistentDataLength: data length is inconsistent")
+            }
+            RecordError::InconsistentRecordType => {
+                write!(f, "InconsistentRecordType: record type is inconsistent")
+            }
         }
     }
 }
@@ -78,28 +81,33 @@ impl Record {
         }
     }
 }
-impl From<WireRecord> for Record {
-    fn from(value: WireRecord) -> Self {
-        let WireRecord {
-            name,
-            record_type: _,
-            class,
-            ttl,
-            data_length: _,
-            data,
-        } = value;
+impl TryFrom<WireRecord> for Record {
+    type Error = RecordError;
+    fn try_from(value: WireRecord) -> Result<Self, Self::Error> {
+        let (data_length, data_type) = match &value.data {
+            Data::A(bytes) => (bytes.len(), 1),
+            Data::Aaaa(bytes) => (bytes.len(), 28),
+            Data::Ns(name) => (name.wire_length(), 2),
+            Data::Unknown { _type, value } => (value.len(), *_type),
+        };
 
-        Self {
-            name,
-            class,
-            ttl,
-            data,
+        if data_length as u16 != value.data_length {
+            Err(RecordError::InconsistentDataLength)
+        } else if data_type != value.record_type {
+            Err(RecordError::InconsistentRecordType)
+        } else {
+            Ok(Self {
+                name: value.name,
+                class: value.class,
+                ttl: value.ttl,
+                data: value.data,
+            })
         }
     }
 }
 
 impl Decode for WireRecord {
-    fn decode(reader: &mut PacketReader) -> Result<WireRecord> {
+    fn decode(reader: &mut PacketReader) -> IoResult<WireRecord> {
         let name = Name::decode(reader)?;
         let record_type = reader.read_u16()?;
         let class = reader.read_u16()?;
@@ -156,7 +164,7 @@ mod test {
         Decode, Encode,
         dns::{
             name::Name,
-            record::{Data, Record, WireRecord},
+            record::{Data, Record, RecordError, WireRecord},
         },
         reader::PacketReader,
         writer::PacketWriter,
@@ -328,6 +336,22 @@ mod test {
         };
 
         assert_eq!(decoded, expected);
+    }
+
+    #[test]
+    fn wire_record_try_from_rejects_inconsistent_data_length() {
+        let wire = WireRecord {
+            name: Name::from_labels(&["example", "com"]),
+            record_type: 1,
+            class: 1,
+            ttl: 60,
+            data_length: 999,
+            data: Data::A([93, 184, 216, 34]),
+        };
+
+        let err = Record::try_from(wire).unwrap_err();
+
+        assert_eq!(err, RecordError::InconsistentDataLength);
     }
 
     #[test]
