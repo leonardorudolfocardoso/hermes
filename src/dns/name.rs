@@ -190,4 +190,15 @@ mod test {
 
         assert_eq!(err.kind(), ErrorKind::UnexpectedEof);
     }
+
+    #[test]
+    fn decode_pointer_past_packet_returns_eof() {
+        let packet = [0xC0, 0x04];
+
+        let mut reader = PacketReader::new(&packet);
+
+        let err = Name::decode(&mut reader).unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::UnexpectedEof);
+    }
 }
