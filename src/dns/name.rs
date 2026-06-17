@@ -3,15 +3,51 @@ use crate::{
     reader::PacketReader,
     writer::{PacketWriter, WriteResult},
 };
-use std::fmt::Display;
 use std::io::Result;
+use std::{fmt::Display, ops::AddAssign};
+
+pub type Label = String;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Name(String);
+pub struct Name(Vec<Label>);
+
+impl Name {
+    pub fn new() -> Self {
+        Name(vec![])
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_labels(labels: &[&str]) -> Self {
+        Self(labels.iter().map(|label| (*label).to_string()).collect())
+    }
+
+    pub fn wire_length(&self) -> usize {
+        self.0.iter().fold(0, |acc, e| acc + 1 + e.len()) + 1
+    }
+    pub fn push(&mut self, label: Label) {
+        self.0.push(label)
+    }
+}
+
+impl IntoIterator for Name {
+    type Item = Label;
+
+    type IntoIter = std::vec::IntoIter<Label>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl AddAssign for Name {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0.extend(rhs);
+    }
+}
 
 impl Decode for Name {
     fn decode(reader: &mut PacketReader) -> Result<Name> {
-        let mut labels = vec![];
+        let mut name = Name::new();
 
         loop {
             let first_byte = reader.read_u8()? as usize;
@@ -23,14 +59,11 @@ impl Decode for Name {
                 // jump to pointer
                 let offset = ((first_byte & 0x3F) << 8) | second_byte;
                 reader.set_position(offset as u64);
-                // read the name
-                let name = Self::decode(reader)?;
+                // add the name to the main
+                name += Self::decode(reader)?;
                 // jump back to after pointer position
                 reader.set_position(after_pointer_position);
 
-                labels.push(name.0);
-
-                let name: Name = labels.join(".").as_str().into();
                 return Ok(name);
             } else if first_byte == 0 {
                 break;
@@ -38,12 +71,11 @@ impl Decode for Name {
                 let size = first_byte;
                 let mut buf = vec![0; size];
                 reader.read_exact(&mut buf)?;
-                let label = String::from_utf8(buf).unwrap();
-                labels.push(label);
+                let label = Label::from_utf8(buf).unwrap();
+                name.push(label);
             }
         }
 
-        let name = labels.join(".").as_str().into();
         Ok(name)
     }
 }
@@ -54,10 +86,8 @@ impl Encode for Name {
             return writer.write_u8(0);
         }
 
-        let name = &self.0;
-        let labels = name.split(".");
         let mut n = 0;
-        for label in labels {
+        for label in &self.0 {
             let size = label.len() as u8;
             n += writer.write_u8(size)?;
             let text = label.as_bytes();
@@ -68,15 +98,9 @@ impl Encode for Name {
     }
 }
 
-impl From<&str> for Name {
-    fn from(value: &str) -> Self {
-        Name(value.to_owned())
-    }
-}
-
 impl Display for Name {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
+        write!(f, "{}", self.0.join("."))
     }
 }
 
@@ -97,7 +121,7 @@ mod test {
 
         let name = Name::decode(&mut reader).unwrap();
 
-        assert_eq!(name, Name::from("google.com"));
+        assert_eq!(name, Name::from_labels(&["google", "com"]));
     }
     #[test]
     fn decodes_compressed_name() {
@@ -114,7 +138,7 @@ mod test {
 
         let name = Name::decode(&mut reader).unwrap();
 
-        assert_eq!(name, Name::from("google.com"));
+        assert_eq!(name, Name::from_labels(&["google", "com"]));
     }
     #[test]
     fn decodes_a_compressed_name_restores_cursor_position() {
@@ -132,7 +156,7 @@ mod test {
 
         let name = Name::decode(&mut reader).unwrap();
 
-        assert_eq!(name, Name::from("google.com"));
+        assert_eq!(name, Name::from_labels(&["google", "com"]));
 
         let next = reader.read_u16().unwrap();
 
@@ -153,12 +177,12 @@ mod test {
 
         let name = Name::decode(&mut reader).unwrap();
 
-        assert_eq!(name, Name::from("www.google.com"));
+        assert_eq!(name, Name::from_labels(&["www", "google", "com"]));
     }
     #[test]
     fn encode() {
         let mut writer = PacketWriter::new();
-        let name = Name::from("google.com");
+        let name = Name::from_labels(&["google", "com"]);
         let n = name.encode(&mut writer).unwrap();
         assert_eq!(n, 12);
         assert_eq!(
@@ -171,11 +195,11 @@ mod test {
     #[test]
     fn encode_round_trip() {
         let mut writer = PacketWriter::new();
-        let name = Name::from("google.com");
+        let name = Name::from_labels(&["google", "com"]);
         let _ = name.encode(&mut writer).unwrap();
         let mut reader = PacketReader::new(writer.get());
         let read = Name::decode(&mut reader).unwrap();
-        assert_eq!(read, Name::from("google.com"));
+        assert_eq!(read, Name::from_labels(&["google", "com"]));
     }
 
     #[test]
@@ -186,13 +210,13 @@ mod test {
 
         let name = Name::decode(&mut reader).unwrap();
 
-        assert_eq!(name, Name::from(""));
+        assert_eq!(name, Name::new());
     }
 
     #[test]
     fn encode_root_label() {
         let mut writer = PacketWriter::new();
-        let name = Name::from("");
+        let name = Name::new();
 
         let n = name.encode(&mut writer).unwrap();
 

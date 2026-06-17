@@ -204,12 +204,12 @@ mod test {
         let original = Message {
             header: Header::new(0x1234, Flags::from(0x8180)),
             questions: vec![Question {
-                name: Name::from("google.com"),
+                name: Name::from_labels(&["google", "com"]),
                 record_type: 1,
                 class: 1,
             }],
             answers: vec![Record::new(
-                Name::from("google.com"),
+                Name::from_labels(&["google", "com"]),
                 1,
                 300,
                 Data::A([142, 250, 0, 1]),
@@ -230,7 +230,7 @@ mod test {
         let message = Message {
             header: Header::new(0x1234, Flags::from(0b0000_0001_0000_0000)),
             questions: vec![Question {
-                name: Name::from("google.com"),
+                name: Name::from_labels(&["google", "com"]),
                 record_type: 1,
                 class: 1,
             }],
@@ -305,24 +305,24 @@ mod test {
         let expected = Message {
             header: Header::new(0x1234, Flags::from(0x8180)),
             questions: vec![Question {
-                name: Name::from("example.com"),
+                name: Name::from_labels(&["example", "com"]),
                 record_type: 1,
                 class: 1,
             }],
             answers: vec![Record::new(
-                Name::from("example.com"),
+                Name::from_labels(&["example", "com"]),
                 1,
                 300,
                 Data::A([93, 184, 216, 34]),
             )],
             authorities: vec![Record::new(
-                Name::from("example.com"),
+                Name::from_labels(&["example", "com"]),
                 1,
                 300,
-                Data::Ns(Name::from("ns1.example.com")),
+                Data::Ns(Name::from_labels(&["ns1", "example", "com"])),
             )],
             additionals: vec![Record::new(
-                Name::from("ns1.example.com"),
+                Name::from_labels(&["ns1", "example", "com"]),
                 1,
                 300,
                 Data::A([192, 0, 2, 1]),
@@ -343,7 +343,7 @@ mod test {
         let dns = Message {
             header: Header::new(1, Flags::from(0x8180)),
             questions: vec![Question {
-                name: Name::from("google.com"),
+                name: Name::from_labels(&["google", "com"]),
                 record_type: 1,
                 class: 1,
             }],

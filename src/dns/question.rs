@@ -51,7 +51,7 @@ mod test {
     #[test]
     fn question_encode_writes_correct_bytes() {
         let question = Question {
-            name: Name::from("google.com"),
+            name: Name::from_labels(&["google", "com"]),
             record_type: 1,
             class: 1,
         };
@@ -71,7 +71,7 @@ mod test {
     #[test]
     fn question_round_trip() {
         let original = Question {
-            name: Name::from("google.com"),
+            name: Name::from_labels(&["google", "com"]),
             record_type: 1,
             class: 1,
         };

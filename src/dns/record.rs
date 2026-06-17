@@ -167,7 +167,7 @@ mod test {
     #[test]
     fn answer_encode_writes_correct_bytes() {
         let answer = Record {
-            name: Name::from("google.com"),
+            name: Name::from_labels(&["google", "com"]),
             class: 1,
             ttl: 300,
             data: Data::A([142, 250, 0, 1]),
@@ -192,7 +192,7 @@ mod test {
     }
     #[test]
     fn answer_round_trip() {
-        let name = Name::from("google.com");
+        let name = Name::from_labels(&["google", "com"]);
         let class = 1;
         let ttl = 300;
         let data = Data::A([142, 250, 0, 1]);
@@ -226,7 +226,7 @@ mod test {
 
     #[test]
     fn aaaa_record_round_trip() {
-        let name = Name::from("example.com");
+        let name = Name::from_labels(&["google", "com"]);
         let class = 1;
         let ttl = 300;
         let data = Data::Aaaa([
@@ -262,10 +262,10 @@ mod test {
 
     #[test]
     fn ns_record_round_trip() {
-        let name = Name::from("example.com");
+        let name = Name::from_labels(&["google", "com"]);
         let class = 1;
         let ttl = 300;
-        let data = Data::Ns(Name::from("ns1.example.com"));
+        let data = Data::Ns(Name::from_labels(&["ns1", "example", "com"]));
 
         let original = Record {
             name: name.clone(),
@@ -296,7 +296,7 @@ mod test {
 
     #[test]
     fn unknown_record_round_trip_preserves_bytes() {
-        let name = Name::from("example.com");
+        let name = Name::from_labels(&["example", "com"]);
         let class = 1;
         let ttl = 60;
         let data = Data::Unknown {
