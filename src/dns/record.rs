@@ -35,26 +35,6 @@ impl Encode for Data {
     }
 }
 
-impl Data {
-    pub fn len(&self) -> usize {
-        match self {
-            Data::A(bytes) => bytes.len(),
-            Data::Aaaa(bytes) => bytes.len(),
-            Data::Ns(name) => name.len(),
-            Data::Unknown {
-                _type: _,
-                value: bytes,
-            } => bytes.len(),
-        }
-    }
-    pub fn as_ns_name(&self) -> Option<&Name> {
-        match self {
-            Data::Ns(name) => Some(name),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct WireRecord {
     name: Name,
@@ -113,51 +93,6 @@ impl From<WireRecord> for Record {
             name,
             class,
             ttl,
-            data,
-        }
-    }
-}
-
-impl WireRecord {
-    #[cfg(test)]
-    pub fn new(
-        name: Name,
-        record_type: u16,
-        class: u16,
-        ttl: u32,
-        data_length: u16,
-        data: Data,
-    ) -> WireRecord {
-        WireRecord {
-            name,
-            record_type,
-            class,
-            ttl,
-            data_length,
-            data,
-        }
-    }
-}
-
-impl From<Record> for WireRecord {
-    fn from(value: Record) -> Self {
-        let Record {
-            name,
-            data,
-            ttl,
-            class,
-        } = value;
-        Self {
-            name,
-            record_type: match data {
-                Data::A(_) => 1,
-                Data::Aaaa(_) => 28,
-                Data::Ns(_) => 2,
-                Data::Unknown { _type, .. } => _type,
-            },
-            class,
-            ttl,
-            data_length: data.len() as u16,
             data,
         }
     }
@@ -226,6 +161,7 @@ mod test {
         reader::PacketReader,
         writer::PacketWriter,
     };
+    use pretty_assertions::assert_eq;
     use std::io::ErrorKind;
 
     #[test]
@@ -256,11 +192,16 @@ mod test {
     }
     #[test]
     fn answer_round_trip() {
+        let name = Name::from("google.com");
+        let class = 1;
+        let ttl = 300;
+        let data = Data::A([142, 250, 0, 1]);
+
         let original = Record {
-            name: Name::from("google.com"),
-            class: 1,
-            ttl: 300,
-            data: Data::A([142, 250, 0, 1]),
+            name: name.clone(),
+            class,
+            ttl,
+            data: data.clone(),
         };
 
         let mut writer = PacketWriter::new();
@@ -271,19 +212,102 @@ mod test {
 
         let decoded = WireRecord::decode(&mut reader).unwrap();
 
-        assert_eq!(decoded, original.try_into().unwrap());
+        let expected = WireRecord {
+            name,
+            record_type: 1,
+            class,
+            ttl,
+            data_length: 4,
+            data,
+        };
+
+        assert_eq!(decoded, expected);
+    }
+
+    #[test]
+    fn aaaa_record_round_trip() {
+        let name = Name::from("example.com");
+        let class = 1;
+        let ttl = 300;
+        let data = Data::Aaaa([
+            0x20, 0x01, 0x0d, 0xb8, 0x85, 0xa3, 0x00, 0x00, 0x00, 0x00, 0x8a, 0x2e, 0x03, 0x70,
+            0x73, 0x34,
+        ]);
+        let original = Record {
+            name: name.clone(),
+            class,
+            ttl,
+            data: data.clone(),
+        };
+
+        let mut writer = PacketWriter::new();
+
+        original.encode(&mut writer).unwrap();
+
+        let mut reader = PacketReader::new(writer.get());
+
+        let decoded = WireRecord::decode(&mut reader).unwrap();
+
+        let expected = WireRecord {
+            name,
+            record_type: 28,
+            class,
+            ttl,
+            data_length: 16,
+            data,
+        };
+
+        assert_eq!(decoded, expected);
+    }
+
+    #[test]
+    fn ns_record_round_trip() {
+        let name = Name::from("example.com");
+        let class = 1;
+        let ttl = 300;
+        let data = Data::Ns(Name::from("ns1.example.com"));
+
+        let original = Record {
+            name: name.clone(),
+            class,
+            ttl,
+            data: data.clone(),
+        };
+
+        let mut writer = PacketWriter::new();
+
+        original.encode(&mut writer).unwrap();
+
+        let mut reader = PacketReader::new(writer.get());
+
+        let decoded = WireRecord::decode(&mut reader).unwrap();
+
+        let expected = WireRecord {
+            name,
+            record_type: 2,
+            class,
+            ttl,
+            data_length: 17,
+            data,
+        };
+
+        assert_eq!(decoded, expected);
     }
 
     #[test]
     fn unknown_record_round_trip_preserves_bytes() {
+        let name = Name::from("example.com");
+        let class = 1;
+        let ttl = 60;
+        let data = Data::Unknown {
+            _type: 99,
+            value: vec![1, 2, 3, 4],
+        };
         let original = Record {
-            name: Name::from("example.com"),
-            class: 1,
-            ttl: 60,
-            data: Data::Unknown {
-                _type: 99,
-                value: vec![1, 2, 3, 4],
-            },
+            name: name.clone(),
+            class,
+            ttl,
+            data: data.clone(),
         };
 
         let mut writer = PacketWriter::new();
@@ -294,7 +318,16 @@ mod test {
 
         let decoded = WireRecord::decode(&mut reader).unwrap();
 
-        assert_eq!(decoded, original.try_into().unwrap());
+        let expected = WireRecord {
+            name,
+            record_type: 99, // unknown
+            class,
+            ttl,
+            data_length: 4,
+            data,
+        };
+
+        assert_eq!(decoded, expected);
     }
 
     #[test]

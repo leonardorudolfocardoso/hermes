@@ -9,12 +9,6 @@ use std::io::Result;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Name(String);
 
-impl Name {
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-}
-
 impl Decode for Name {
     fn decode(reader: &mut PacketReader) -> Result<Name> {
         let mut labels = vec![];
@@ -56,6 +50,10 @@ impl Decode for Name {
 
 impl Encode for Name {
     fn encode(&self, writer: &mut PacketWriter) -> WriteResult {
+        if self.0.is_empty() {
+            return writer.write_u8(0);
+        }
+
         let name = &self.0;
         let labels = name.split(".");
         let mut n = 0;
@@ -178,6 +176,28 @@ mod test {
         let mut reader = PacketReader::new(writer.get());
         let read = Name::decode(&mut reader).unwrap();
         assert_eq!(read, Name::from("google.com"));
+    }
+
+    #[test]
+    fn decode_root_label() {
+        let packet = [0];
+
+        let mut reader = PacketReader::new(&packet);
+
+        let name = Name::decode(&mut reader).unwrap();
+
+        assert_eq!(name, Name::from(""));
+    }
+
+    #[test]
+    fn encode_root_label() {
+        let mut writer = PacketWriter::new();
+        let name = Name::from("");
+
+        let n = name.encode(&mut writer).unwrap();
+
+        assert_eq!(n, 1);
+        assert_eq!(writer.get(), &[0]);
     }
 
     #[test]
