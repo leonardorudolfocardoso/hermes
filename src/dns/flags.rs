@@ -126,3 +126,57 @@ impl From<u16> for Flags {
         Flags(value)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{Flags, Opcode, QueryOrResponse, ResponseCode};
+
+    #[test]
+    fn query_or_response_uses_most_significant_bit() {
+        assert_eq!(Flags::from(0b0000_0000_0000_0000).query_or_response(), QueryOrResponse::Query);
+        assert_eq!(
+            Flags::from(0b1000_0000_0000_0000).query_or_response(),
+            QueryOrResponse::Response
+        );
+    }
+
+    #[test]
+    fn opcode_extracts_the_opcode_bits() {
+        assert_eq!(Flags::from(0b0000_0000_0000_0000).opcode(), Opcode::Query);
+        assert_eq!(Flags::from(0b0000_1000_0000_0000).opcode(), Opcode::IQuery);
+        assert_eq!(Flags::from(0b0001_0000_0000_0000).opcode(), Opcode::Status);
+        assert_eq!(
+            Flags::from(0b0111_1000_0000_0000).opcode(),
+            Opcode::Unknown(15)
+        );
+    }
+
+    #[test]
+    fn response_code_maps_the_low_four_bits() {
+        assert_eq!(Flags::from(0b0000_0000_0000_0000).response_code(), ResponseCode::NoError);
+        assert_eq!(Flags::from(0b0000_0000_0000_0001).response_code(), ResponseCode::FormatError);
+        assert_eq!(
+            Flags::from(0b0000_0000_0000_0010).response_code(),
+            ResponseCode::ServerFailure
+        );
+        assert_eq!(Flags::from(0b0000_0000_0000_0011).response_code(), ResponseCode::NameError);
+        assert_eq!(
+            Flags::from(0b0000_0000_0000_0100).response_code(),
+            ResponseCode::NotImplemented
+        );
+        assert_eq!(Flags::from(0b0000_0000_0000_0101).response_code(), ResponseCode::Refused);
+        assert_eq!(Flags::from(0b0000_0000_0000_1111).response_code(), ResponseCode::Unknown(15));
+    }
+
+    #[test]
+    fn flag_helpers_preserve_unrelated_bits() {
+        let flags = Flags::from(0b0000_0001_0010_0011);
+
+        assert_eq!(flags.into_response(), Flags::from(0b1000_0001_0010_0011));
+        assert_eq!(flags.with_recursion_available(), Flags::from(0b0000_0001_1010_0011));
+        assert_eq!(
+            flags.with_response_code(ResponseCode::Refused),
+            Flags::from(0b0000_0001_0010_0101)
+        );
+    }
+}

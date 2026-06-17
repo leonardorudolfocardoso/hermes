@@ -164,7 +164,7 @@ mod test {
     use crate::{
         OwnedPacket,
         dns::{
-            flags::Flags,
+            flags::{Flags, ResponseCode},
             header::Header,
             name::Name,
             question::Question,
@@ -224,6 +224,63 @@ mod test {
 
         assert_eq!(decoded, original);
     }
+
+    #[test]
+    fn into_response_sets_only_the_response_bit() {
+        let message = Message {
+            header: Header::new(0x1234, Flags::from(0b0000_0001_0000_0000)),
+            questions: vec![Question {
+                name: Name::from("google.com"),
+                record_type: 1,
+                class: 1,
+            }],
+            answers: vec![],
+            authorities: vec![],
+            additionals: vec![],
+        };
+
+        let response = message.clone().into_response();
+
+        assert_eq!(
+            response.flags().query_or_response(),
+            Flags::from(0b1000_0001_0000_0000).query_or_response()
+        );
+        assert_eq!(response.questions(), message.questions());
+        assert_eq!(response.answers(), message.answers());
+        assert_eq!(response.authorities(), message.authorities());
+        assert_eq!(response.additionals(), message.additionals());
+    }
+
+    #[test]
+    fn with_recursion_available_sets_only_the_ra_bit() {
+        let message = Message {
+            header: Header::new(0x1234, Flags::from(0b0000_0001_0000_0000)),
+            questions: vec![],
+            answers: vec![],
+            authorities: vec![],
+            additionals: vec![],
+        };
+
+        let updated = message.with_recursion_available();
+
+        assert_eq!(updated.flags(), Flags::from(0b0000_0001_1000_0000));
+    }
+
+    #[test]
+    fn with_response_code_updates_the_low_four_bits() {
+        let message = Message {
+            header: Header::new(0x1234, Flags::from(0b1000_0001_1000_0000)),
+            questions: vec![],
+            answers: vec![],
+            authorities: vec![],
+            additionals: vec![],
+        };
+
+        let updated = message.with_response_code(ResponseCode::Refused);
+
+        assert_eq!(updated.flags(), Flags::from(0b1000_0001_1000_0101));
+    }
+
     #[test]
     fn dns_round_trip_preserves_fields() {
         let packet: Packet = &[
