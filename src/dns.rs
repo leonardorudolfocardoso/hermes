@@ -173,6 +173,7 @@ mod test {
     };
 
     use super::{Message, Packet};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn dns_encode_empty_packet() {
@@ -259,7 +260,7 @@ mod test {
             )],
             authorities: vec![Record::new(
                 Name::from("example.com"),
-                2,
+                1,
                 300,
                 Data::Ns(Name::from("ns1.example.com")),
             )],
