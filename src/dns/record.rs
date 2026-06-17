@@ -83,9 +83,9 @@ impl Display for RecordError {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Record {
     name: Name,
-    data: Data,
-    ttl: u32,
     class: u16,
+    ttl: u32,
+    data: Data,
 }
 impl Record {
     #[cfg(test)]
@@ -98,33 +98,25 @@ impl Record {
         }
     }
 }
-impl TryFrom<WireRecord> for Record {
-    type Error = RecordError;
-
-    fn try_from(value: WireRecord) -> std::result::Result<Self, Self::Error> {
+impl From<WireRecord> for Record {
+    fn from(value: WireRecord) -> Self {
         let WireRecord {
             name,
             record_type: _,
             class,
             ttl,
-            data_length,
+            data_length: _,
             data,
         } = value;
-        if data_length != data.len() as u16 {
-            return Err(Self::Error::InconsistentDataLength);
-        }
-        Ok(Self {
+
+        Self {
             name,
-            data,
-            ttl,
             class,
-        })
+            ttl,
+            data,
+        }
     }
 }
-
-pub type WireAnswer = WireRecord;
-pub type WireAuthority = WireRecord;
-pub type WireAdditional = WireRecord;
 
 impl WireRecord {
     #[cfg(test)]

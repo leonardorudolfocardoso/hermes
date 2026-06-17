@@ -6,7 +6,7 @@ use crate::{
         flags::{Flags, ResponseCode},
         header::{Header, WireHeader},
         question::Question,
-        record::{Record, RecordError, WireAdditional, WireAnswer, WireAuthority, WireRecord},
+        record::{Record, RecordError, WireRecord},
     },
     reader::PacketReader,
     writer::PacketWriter,
@@ -106,17 +106,19 @@ impl<'a> TryFrom<Packet<'a>> for Message {
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
         let mut reader = PacketReader::new(value);
         let header = WireHeader::decode(&mut reader)?;
-        let questions = Question::decode_n(&mut reader, header.question_count().into())
-            .collect::<std::io::Result<Vec<_>>>()?;
-        let answers = WireAnswer::decode_n(&mut reader, header.answer_count().into())
-            .map(|ar| ar?.try_into().map_err(Self::Error::from))
-            .collect::<Result<Vec<_>, Self::Error>>()?;
-        let authorities = WireAuthority::decode_n(&mut reader, header.authority_count().into())
-            .map(|ar| ar?.try_into().map_err(Self::Error::from))
-            .collect::<Result<Vec<_>, Self::Error>>()?;
-        let additionals = WireAdditional::decode_n(&mut reader, header.additional_count().into())
-            .map(|ar| ar?.try_into().map_err(Self::Error::from))
-            .collect::<Result<Vec<_>, Self::Error>>()?;
+        let questions = Question::decode_n(&mut reader, header.question_count().into())?;
+        let answers = WireRecord::decode_n(&mut reader, header.answer_count().into())?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let authorities = WireRecord::decode_n(&mut reader, header.authority_count().into())?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let additionals = WireRecord::decode_n(&mut reader, header.additional_count().into())?
+            .into_iter()
+            .map(Into::into)
+            .collect();
 
         Ok(Message {
             header: header.into(),
