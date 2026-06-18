@@ -1,12 +1,16 @@
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+};
 
 use crate::{
     Decode, Encode, OwnedPacket, Packet,
     dns::{
         flags::{Flags, ResponseCode},
         header::{Header, WireHeader},
+        name::Name,
         question::Question,
-        record::{Record, RecordError, WireRecord},
+        record::{Data, Record, RecordError, WireRecord},
     },
     reader::PacketReader,
     writer::PacketWriter,
@@ -48,6 +52,12 @@ impl Display for DnsError {
             DnsError::RecordError(e) => write!(f, "DnsError: {e}"),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferralServer<'a> {
+    name: &'a Name,
+    addrs: Vec<SocketAddr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +107,39 @@ impl Message {
             header: self.header.with_response_code(code),
             ..self
         }
+    }
+
+    pub fn referral_servers(&self) -> impl Iterator<Item = ReferralServer> {
+        self.authorities.iter().filter_map(|authority| {
+            let name = match authority.as_ns() {
+                Some(name) => name,
+                None => return None,
+            };
+
+            let addrs: Vec<_> = self
+                .additionals
+                .iter()
+                .filter_map(move |additional| {
+                    if additional.name() != name {
+                        return None;
+                    }
+
+                    match additional.data() {
+                        Data::A(ip) => Some(SocketAddr::new(IpAddr::V4(Ipv4Addr::from(*ip)), 53)),
+                        Data::Aaaa(ip) => {
+                            Some(SocketAddr::new(IpAddr::V6(Ipv6Addr::from(*ip)), 53))
+                        }
+                        _ => None,
+                    }
+                })
+                .collect();
+
+            if addrs.is_empty() {
+                None
+            } else {
+                Some(ReferralServer { name, addrs })
+            }
+        })
     }
 }
 
@@ -164,6 +207,7 @@ mod test {
     use crate::{
         OwnedPacket,
         dns::{
+            ReferralServer,
             flags::{Flags, ResponseCode},
             header::Header,
             name::Name,
@@ -171,6 +215,7 @@ mod test {
             record::{Data, Record},
         },
     };
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
     use super::{Message, Packet};
     use pretty_assertions::assert_eq;
@@ -377,5 +422,73 @@ mod test {
 
         assert_eq!(packet.questions.len(), 1);
         assert_eq!(packet.answers.len(), 1);
+    }
+
+    #[test]
+    fn referral_servers_extracts_matching_glue_records() {
+        let name = Name::from_labels(&["ns1", "example", "com"]);
+        let message = Message {
+            header: Header::new(0x1234, Flags::from(0x8180)),
+            questions: vec![],
+            answers: vec![],
+            authorities: vec![Record::new(
+                Name::from_labels(&["example", "com"]),
+                1,
+                300,
+                Data::Ns(Name::from_labels(&["ns1", "example", "com"])),
+            )],
+            additionals: vec![
+                Record::new(name.clone(), 1, 300, Data::A([192, 0, 2, 1])),
+                Record::new(
+                    name.clone(),
+                    1,
+                    300,
+                    Data::Aaaa([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]),
+                ),
+            ],
+        };
+
+        let referral_servers: Vec<_> = message.referral_servers().collect();
+
+        assert_eq!(
+            referral_servers,
+            vec![ReferralServer {
+                name: &name,
+                addrs: vec![
+                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), 53),
+                    SocketAddr::new(
+                        IpAddr::V6(Ipv6Addr::new(0x2001, 0x0db8, 0, 0, 0, 0, 0, 1)),
+                        53
+                    )
+                ],
+            }]
+        );
+    }
+
+    #[test]
+    fn referral_servers_ignores_non_glue_records() {
+        let message = Message {
+            header: Header::new(0x1234, Flags::from(0x8180)),
+            questions: vec![],
+            answers: vec![],
+            authorities: vec![Record::new(
+                Name::from_labels(&["example", "com"]),
+                1,
+                300,
+                Data::Ns(Name::from_labels(&["ns1", "example", "com"])),
+            )],
+            additionals: vec![Record::new(
+                Name::from_labels(&["ns2", "example", "com"]),
+                1,
+                300,
+                Data::A([192, 0, 2, 2]),
+            )],
+        };
+
+        let referral_servers: Vec<_> = message.referral_servers().collect();
+
+        dbg!(&referral_servers);
+
+        assert!(referral_servers.is_empty());
     }
 }
