@@ -15,7 +15,7 @@ pub enum Data {
     A([u8; 4]),
     /// A host IpV6 address.
     Aaaa([u8; 16]),
-    /// An authoritative name server.
+    /// A name server.
     Ns(Name),
     /// An unknown data
     Unknown { _type: u16, value: Vec<u8> },
