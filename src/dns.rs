@@ -57,7 +57,22 @@ impl Display for DnsError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferralAuthority<'a> {
     ns_name: &'a Name,
-    glue_addrs: Vec<SocketAddr>,
+    ips: Vec<SocketAddr>,
+}
+
+impl ReferralAuthority<'_> {
+    pub fn ns_name(&self) -> &Name {
+        self.ns_name
+    }
+    pub fn has_no_glue(&self) -> bool {
+        self.ips.is_empty()
+    }
+    pub fn glue(&mut self, ip: SocketAddr) {
+        self.ips.push(ip)
+    }
+    pub fn into_ips(self) -> Vec<SocketAddr> {
+        self.ips
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,7 +151,7 @@ impl Message {
 
             Some(ReferralAuthority {
                 ns_name,
-                glue_addrs,
+                ips: glue_addrs,
             })
         })
     }
@@ -424,6 +439,38 @@ mod test {
     }
 
     #[test]
+    fn referral_authority_starts_without_glue() {
+        let ns_name = Name::from_labels(&["ns1", "example", "com"]);
+        let authority = ReferralAuthority {
+            ns_name: &ns_name,
+            ips: vec![],
+        };
+
+        assert_eq!(authority.ns_name(), &ns_name);
+        assert!(authority.has_no_glue());
+    }
+
+    #[test]
+    fn referral_authority_collects_glue_and_returns_it() {
+        let ns_name = Name::from_labels(&["ns1", "example", "com"]);
+        let mut authority = ReferralAuthority {
+            ns_name: &ns_name,
+            ips: vec![],
+        };
+        let ipv4 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), 53);
+        let ipv6 = SocketAddr::new(
+            IpAddr::V6(Ipv6Addr::new(0x2001, 0x0db8, 0, 0, 0, 0, 0, 1)),
+            53,
+        );
+
+        authority.glue(ipv4);
+        authority.glue(ipv6);
+
+        assert!(!authority.has_no_glue());
+        assert_eq!(authority.into_ips(), vec![ipv4, ipv6]);
+    }
+
+    #[test]
     fn referral_authorities_extracts_matching_glue_records() {
         let name = Name::from_labels(&["ns1", "example", "com"]);
         let message = Message {
@@ -453,7 +500,7 @@ mod test {
             referral_authorities,
             vec![ReferralAuthority {
                 ns_name: &name,
-                glue_addrs: vec![
+                ips: vec![
                     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), 53),
                     SocketAddr::new(
                         IpAddr::V6(Ipv6Addr::new(0x2001, 0x0db8, 0, 0, 0, 0, 0, 1)),
@@ -486,10 +533,6 @@ mod test {
 
         let referral_authorities: Vec<_> = message.referral_authorities().collect();
 
-        assert!(
-            referral_authorities
-                .iter()
-                .all(|ra| ra.glue_addrs.is_empty())
-        );
+        assert!(referral_authorities.iter().all(|ra| ra.ips.is_empty()));
     }
 }
