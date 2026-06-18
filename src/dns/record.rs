@@ -80,6 +80,13 @@ impl Record {
             data,
         }
     }
+    /// get ns data if it is [[`Data::Ns`]] variant, or none otherwise
+    pub fn as_ns(&self) -> Option<&Name> {
+        match &self.data {
+            Data::Ns(name) => Some(name),
+            _ => None,
+        }
+    }
 }
 impl TryFrom<WireRecord> for Record {
     type Error = RecordError;
@@ -230,6 +237,31 @@ mod test {
         };
 
         assert_eq!(decoded, expected);
+    }
+
+    #[test]
+    fn as_ns_returns_the_nameserver_name_for_ns_records() {
+        let ns_name = Name::from_labels(&["ns1", "example", "com"]);
+        let record = Record::new(
+            Name::from_labels(&["example", "com"]),
+            1,
+            300,
+            Data::Ns(ns_name.clone()),
+        );
+
+        assert_eq!(record.as_ns(), Some(&ns_name));
+    }
+
+    #[test]
+    fn as_ns_returns_none_for_non_ns_records() {
+        let record = Record::new(
+            Name::from_labels(&["example", "com"]),
+            1,
+            300,
+            Data::A([192, 0, 2, 1]),
+        );
+
+        assert_eq!(record.as_ns(), None);
     }
 
     #[test]
