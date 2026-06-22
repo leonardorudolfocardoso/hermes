@@ -36,7 +36,6 @@ pub struct Header {
     flags: Flags,
 }
 impl Header {
-    #[cfg(test)]
     pub fn new(id: u16, flags: Flags) -> Self {
         Self { id, flags }
     }
@@ -100,7 +99,9 @@ mod test {
 
     #[test]
     fn decode_truncated_header_returns_eof() {
-        let packet = [0x12, 0x34, 0x81, 0x80, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00];
+        let packet = [
+            0x12, 0x34, 0x81, 0x80, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00,
+        ];
 
         let mut reader = PacketReader::new(&packet);
 
@@ -123,6 +124,9 @@ mod test {
         assert_eq!(header.answer_count(), 2);
         assert_eq!(header.authority_count(), 3);
         assert_eq!(header.additional_count(), 4);
-        assert_eq!(header, WireHeader::decode(&mut PacketReader::new(&packet)).unwrap());
+        assert_eq!(
+            header,
+            WireHeader::decode(&mut PacketReader::new(&packet)).unwrap()
+        );
     }
 }

@@ -16,6 +16,7 @@ use crate::{
     writer::PacketWriter,
 };
 
+pub mod client;
 pub mod flags;
 pub mod header;
 pub mod name;
@@ -84,6 +85,37 @@ pub struct Message {
 }
 
 impl Message {
+    pub(crate) fn new(
+        header: Header,
+        questions: Vec<Question>,
+        answers: Vec<Record>,
+        authorities: Vec<Record>,
+        additionals: Vec<Record>,
+    ) -> Self {
+        Self {
+            header,
+            questions,
+            answers,
+            authorities,
+            additionals,
+        }
+    }
+
+    pub(crate) fn new_query(id: u16, question: Question) -> Self {
+        Self::new(
+            Header::new(id, Flags::from(0x0100)),
+            vec![question],
+            vec![],
+            vec![],
+            vec![],
+        )
+    }
+
+    #[cfg(test)]
+    pub fn id(&self) -> u16 {
+        self.header.id()
+    }
+
     pub fn flags(&self) -> Flags {
         self.header.flags()
     }

@@ -50,6 +50,10 @@ impl Flags {
     const RESPONSE_MASK: u16 = 1 << 15;
     const RECURSION_AVAILABLE_MASK: u16 = 1 << 7;
 
+    pub fn new() -> Self {
+        Flags(0)
+    }
+
     pub fn into_response(self) -> Self {
         Self(self.0 | Self::RESPONSE_MASK)
     }
@@ -133,7 +137,10 @@ mod test {
 
     #[test]
     fn query_or_response_uses_most_significant_bit() {
-        assert_eq!(Flags::from(0b0000_0000_0000_0000).query_or_response(), QueryOrResponse::Query);
+        assert_eq!(
+            Flags::from(0b0000_0000_0000_0000).query_or_response(),
+            QueryOrResponse::Query
+        );
         assert_eq!(
             Flags::from(0b1000_0000_0000_0000).query_or_response(),
             QueryOrResponse::Response
@@ -153,19 +160,34 @@ mod test {
 
     #[test]
     fn response_code_maps_the_low_four_bits() {
-        assert_eq!(Flags::from(0b0000_0000_0000_0000).response_code(), ResponseCode::NoError);
-        assert_eq!(Flags::from(0b0000_0000_0000_0001).response_code(), ResponseCode::FormatError);
+        assert_eq!(
+            Flags::from(0b0000_0000_0000_0000).response_code(),
+            ResponseCode::NoError
+        );
+        assert_eq!(
+            Flags::from(0b0000_0000_0000_0001).response_code(),
+            ResponseCode::FormatError
+        );
         assert_eq!(
             Flags::from(0b0000_0000_0000_0010).response_code(),
             ResponseCode::ServerFailure
         );
-        assert_eq!(Flags::from(0b0000_0000_0000_0011).response_code(), ResponseCode::NameError);
+        assert_eq!(
+            Flags::from(0b0000_0000_0000_0011).response_code(),
+            ResponseCode::NameError
+        );
         assert_eq!(
             Flags::from(0b0000_0000_0000_0100).response_code(),
             ResponseCode::NotImplemented
         );
-        assert_eq!(Flags::from(0b0000_0000_0000_0101).response_code(), ResponseCode::Refused);
-        assert_eq!(Flags::from(0b0000_0000_0000_1111).response_code(), ResponseCode::Unknown(15));
+        assert_eq!(
+            Flags::from(0b0000_0000_0000_0101).response_code(),
+            ResponseCode::Refused
+        );
+        assert_eq!(
+            Flags::from(0b0000_0000_0000_1111).response_code(),
+            ResponseCode::Unknown(15)
+        );
     }
 
     #[test]
@@ -173,7 +195,10 @@ mod test {
         let flags = Flags::from(0b0000_0001_0010_0011);
 
         assert_eq!(flags.into_response(), Flags::from(0b1000_0001_0010_0011));
-        assert_eq!(flags.with_recursion_available(), Flags::from(0b0000_0001_1010_0011));
+        assert_eq!(
+            flags.with_recursion_available(),
+            Flags::from(0b0000_0001_1010_0011)
+        );
         assert_eq!(
             flags.with_response_code(ResponseCode::Refused),
             Flags::from(0b0000_0001_0010_0101)

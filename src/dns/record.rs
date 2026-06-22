@@ -80,6 +80,13 @@ impl Record {
             data,
         }
     }
+
+    pub fn data(&self) -> &Data {
+        &self.data
+    }
+    pub fn name(&self) -> &Name {
+        &self.name
+    }
     /// get ns data if it is [[`Data::Ns`]] variant, or none otherwise
     pub fn as_ns(&self) -> Option<&Name> {
         match &self.data {
